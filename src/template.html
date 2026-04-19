@@ -172,6 +172,22 @@ body {
     text-transform: uppercase;
     font-weight: 600;
 }
+.action-btn {
+    width: 100%;
+    padding: 10px;
+    margin-top: 10px;
+    background: rgba(102, 252, 241, 0.1);
+    color: #66fcf1;
+    border: 1px solid rgba(102, 252, 241, 0.3);
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+.action-btn:hover {
+    background: rgba(102, 252, 241, 0.2);
+}
 </style>
 </head>
 <body>
@@ -187,6 +203,8 @@ body {
         <span>Edges</span>
         <span id="stat-edges">0</span>
     </div>
+
+    <button id="btn-replay" class="action-btn">Replay Extraction</button>
 
     <div class="control-group">
         <h2>Appearance Filters</h2>
@@ -214,10 +232,6 @@ body {
             <label><span>Damping (Friction)</span> <span id="val-friction">0.8</span></label>
             <input type="range" id="ctrl-friction" min="0" max="1" step="0.01" value="0.8">
         </div>
-        <div class="control-item">
-            <label><span>Simulation Speed</span> <span id="val-speed">1.0</span></label>
-            <input type="range" id="ctrl-speed" min="0" max="3" step="0.1" value="1.0">
-        </div>
     </div>
 </div>
 
@@ -243,16 +257,13 @@ body {
 <div id="graph"></div>
 
 <script>
-// Will be dynamically injected by kgraph
 const rawData = {{GRAPH_DATA_PLACEHOLDER}};
 
-// System State
 let state = {
     charge: -140,
     distance: 40,
     gravity: 0.05,
     friction: 0.8,
-    speed: 1.0,
     
     showFuncs: true,
     showImports: true,
@@ -264,9 +275,9 @@ let state = {
     
     hoverNode: null,
     focusedNode: null,
+    isReplaying: false
 };
 
-// Compute heuristic clusters (Services/Folders)
 const serviceMap = {};
 rawData.nodes.forEach(n => {
     let p = n.file_path.replace(/\\/g, '/');
@@ -276,8 +287,6 @@ rawData.nodes.forEach(n => {
     serviceMap[service] = (serviceMap[service] || 0) + 1;
 });
 
-// Build Node Map & Search Index
-const nodeMap = new Map(rawData.nodes.map(n => [n.id, n]));
 const datalist = document.getElementById('node-datalist');
 rawData.nodes.forEach(n => {
     let option = document.createElement('option');
@@ -285,9 +294,8 @@ rawData.nodes.forEach(n => {
     datalist.appendChild(option);
 });
 
-// DOM Hookups
-const ids = ['charge', 'distance', 'gravity', 'friction', 'speed'];
-ids.forEach(id => {
+// Controls
+['charge', 'distance', 'gravity', 'friction'].forEach(id => {
     document.getElementById('ctrl-' + id).addEventListener('input', e => {
         let v = parseFloat(e.target.value);
         state[id] = v;
@@ -295,14 +303,15 @@ ids.forEach(id => {
         updatePhysics();
     });
 });
-['funcs', 'imports', 'calls', 'arrows'].forEach(id => {
-    document.getElementById('chk-' + id).addEventListener('change', e => {
-        state[id] = e.target.checked;
-        refreshData();
+
+const chkMap = { 'chk-funcs': 'showFuncs', 'chk-imports': 'showImports', 'chk-calls': 'showCalls', 'chk-arrows': 'arrows' };
+Object.keys(chkMap).forEach(id => {
+    document.getElementById(id).addEventListener('change', e => {
+        state[chkMap[id]] = e.target.checked;
+        if (!state.isReplaying) refreshData();
     });
 });
 
-// Neighbor Caching mapping
 const linkRelations = new Map();
 rawData.edges.forEach(edge => {
     let a = typeof edge.from_node_id === 'object' ? edge.from_node_id.id : edge.from_node_id;
@@ -318,7 +327,6 @@ function getNeighbors(nodeId) {
 }
 
 function computeData() {
-    // LOD filtering
     const renderFuncs = state.showFuncs && state.scale > state.lodThreshold;
     
     let nodes = rawData.nodes.filter(n => {
@@ -347,18 +355,11 @@ const colors = {
     'python': '#3572A5', 'go': '#00ADD8', 'java': '#b07219'
 };
 
-const d = computeData();
-document.getElementById('stat-nodes').innerText = d.nodes.length;
-document.getElementById('stat-edges').innerText = d.edges.length;
+const dt = computeData();
+document.getElementById('stat-nodes').innerText = dt.nodes.length;
+document.getElementById('stat-edges').innerText = dt.edges.length;
 
-let gData = {
-    nodes: d.nodes.map(n => ({...n, val: n.kind === 'File' ? 8 : 4})),
-    links: d.edges.map(e => {
-        let a = typeof e.from_node_id === 'object' ? e.from_node_id.id : e.from_node_id;
-        let b = typeof e.to_node_id === 'object' ? e.to_node_id.id : e.to_node_id;
-        return { source: a, target: b, relation_type: e.relation_type };
-    })
-};
+let gData = { nodes: [], links: [] };
 
 const Graph = ForceGraph()(document.getElementById('graph'))
     .graphData(gData)
@@ -368,8 +369,6 @@ const Graph = ForceGraph()(document.getElementById('graph'))
     .linkColor(e => e.relation_type === 'Imports' ? 'rgba(74, 222, 128, 0.6)' : 'rgba(102, 252, 241, 0.4)')
     .linkWidth(e => {
         if (!state.focusedNode && !state.hoverNode) return e.relation_type === 'Imports' ? 2 : 1;
-        
-        // Highlight active paths
         let active = state.focusedNode || state.hoverNode;
         let a = e.source.id || e.source; let b = e.target.id || e.target;
         if (active.id === a || active.id === b) return 3;
@@ -378,9 +377,7 @@ const Graph = ForceGraph()(document.getElementById('graph'))
     .linkLineDash(e => e.relation_type === 'Calls' ? [3, 2] : null)
     .linkDirectionalArrowLength(e => state.arrows ? 3.5 : 0)
     .linkDirectionalArrowRelPos(1)
-    // Custom node rendering for Fading, LOD text, and styles
     .nodeCanvasObject((node, ctx, globalScale) => {
-        // Fading Logic
         let alpha = 1.0;
         if (state.focusedNode) {
             let active = state.focusedNode;
@@ -401,7 +398,6 @@ const Graph = ForceGraph()(document.getElementById('graph'))
         ctx.arc(node.x, node.y, node.val, 0, 2 * Math.PI, false);
         ctx.fill();
         
-        // Subtly outline active hover
         if (state.hoverNode && state.hoverNode.id === node.id) {
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 1;
@@ -414,23 +410,21 @@ const Graph = ForceGraph()(document.getElementById('graph'))
             ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
             ctx.fillText(label, node.x, node.y + node.val + fontSize + 2);
         }
-        ctx.globalAlpha = 1.0; // Reset
+        ctx.globalAlpha = 1.0; 
     })
     .onNodeHover(node => {
         document.getElementById('graph').style.cursor = node ? 'pointer' : null;
         state.hoverNode = node;
     })
     .onNodeClick(node => {
-        // Focus neighbor highlighting
         if (state.focusedNode && state.focusedNode.id === node.id) {
-            state.focusedNode = null; // Toggle off
+            state.focusedNode = null; 
             document.getElementById('node-details').style.display = 'none';
         } else {
             state.focusedNode = node;
             Graph.centerAt(node.x, node.y, 1000);
             Graph.zoom(4, 2000);
             
-            // Populate right panel
             const det = document.getElementById('node-details');
             document.getElementById('det-kind').innerText = node.kind;
             document.getElementById('det-lang').innerText = node.language;
@@ -447,21 +441,19 @@ const Graph = ForceGraph()(document.getElementById('graph'))
     })
     .onZoom(e => {
         state.scale = e.k;
-        refreshData();
+        if (!state.isReplaying) refreshData();
     });
 
-// Init physics
 updatePhysics();
 
 function refreshData() {
+    if (state.isReplaying) return;
     const updated = computeData();
     document.getElementById('stat-nodes').innerText = updated.nodes.length;
     document.getElementById('stat-edges').innerText = updated.edges.length;
     
-    // Merge new graph data carefully to retain physics positions of surviving nodes
     let g = {
         nodes: updated.nodes.map(n => {
-            // retain x, y, vx, vy if it existed in the active graph
             let exist = Graph.graphData().nodes.find(old => old.id === n.id);
             let payload = {...n, val: n.kind === 'File' ? 8 : 4};
             if (exist) {
@@ -489,13 +481,65 @@ function updatePhysics() {
     Graph.d3ReheatSimulation();
 }
 
-// Search Functionality
+function playReplay() {
+    if (state.isReplaying) return;
+    state.isReplaying = true;
+    
+    let src = computeData();
+    let nIdx = 0;
+    
+    let currentNodes = [];
+    let currentLinks = [];
+    let activeSet = new Set();
+
+    let rootNodes = src.nodes.filter(n => n.kind === 'File');
+    let subNodes = src.nodes.filter(n => n.kind !== 'File');
+    let orderedNodes = [...rootNodes, ...subNodes];
+
+    let g = { nodes: [], links: [] };
+    Graph.graphData(g);
+
+    let interval = setInterval(() => {
+        let nAdded = 0;
+        
+        while (nAdded < 5 && nIdx < orderedNodes.length) {
+            let n = orderedNodes[nIdx++];
+            currentNodes.push({...n, val: n.kind === 'File' ? 8 : 4});
+            activeSet.add(n.id);
+            nAdded++;
+        }
+        
+        currentLinks = src.edges.filter(e => {
+            let a = typeof e.from_node_id === 'object' ? e.from_node_id.id : e.from_node_id;
+            let b = typeof e.to_node_id === 'object' ? e.to_node_id.id : e.to_node_id;
+            return activeSet.has(a) && activeSet.has(b);
+        }).map(e => {
+            let a = typeof e.from_node_id === 'object' ? e.from_node_id.id : e.from_node_id;
+            let b = typeof e.to_node_id === 'object' ? e.to_node_id.id : e.to_node_id;
+            return { source: a, target: b, relation_type: e.relation_type };
+        });
+
+        Graph.graphData({ nodes: [...currentNodes], links: [...currentLinks] });
+        
+        document.getElementById('stat-nodes').innerText = currentNodes.length;
+        document.getElementById('stat-edges').innerText = currentLinks.length;
+
+        if (nIdx >= orderedNodes.length) {
+            clearInterval(interval);
+            state.isReplaying = false;
+        }
+    }, 60);
+}
+
+document.getElementById('btn-replay').addEventListener('click', () => {
+    playReplay();
+});
+
 document.getElementById('search-input').addEventListener('change', e => {
     let q = e.target.value.toLowerCase();
     let target = rawData.nodes.find(n => n.name.toLowerCase() === q);
     if (!target) return;
     
-    // Guarantee visible
     if ((target.kind !== 'File' && target.kind !== 'Module') && !state.showFuncs) {
         state.showFuncs = true;
         document.getElementById('chk-funcs').checked = true;
@@ -503,7 +547,6 @@ document.getElementById('search-input').addEventListener('change', e => {
     }
     
     state.focusedNode = target;
-    // Find node in Graph's active rendering array with coordinates
     setTimeout(() => {
         let activeGraphNode = Graph.graphData().nodes.find(n => n.id === target.id);
         if (activeGraphNode) {
@@ -519,8 +562,12 @@ document.getElementById('search-input').addEventListener('change', e => {
             document.getElementById('det-conns').innerText = getNeighbors(activeGraphNode.id).size;
             det.style.display = 'block';
         }
-    }, state.showFuncs ? 0 : 500); // delay if we just forced a re-render
+    }, state.showFuncs ? 0 : 500);
 });
+
+// Auto-start
+setTimeout(() => playReplay(), 200);
+
 </script>
 </body>
 </html>
