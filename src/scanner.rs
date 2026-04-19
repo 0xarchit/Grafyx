@@ -32,21 +32,61 @@ pub struct Scanner {
 impl Scanner {
     pub fn new(dirs: Vec<String>, ignore_patterns: Option<Vec<String>>) -> Self {
         let mut ignores = vec![
-            "node_modules".to_string(),
-            "__pycache__".to_string(),
-            "target".to_string(),
-            "dist".to_string(),
-            "build".to_string(),
-            ".git".to_string(),
-            ".next".to_string(),
-            ".cache".to_string(),
-            ".svelte-kit".to_string(),
-            "out".to_string(),
-            "coverage".to_string(),
-            ".venv".to_string(),
-            "venv".to_string(),
-            "env".to_string(),
-        ];
+    // Node / JS / TS
+    "node_modules".to_string(),
+    "dist".to_string(),
+    "build".to_string(),
+    ".next".to_string(),
+    ".nuxt".to_string(),
+    ".cache".to_string(),
+    ".parcel-cache".to_string(),
+    ".svelte-kit".to_string(),
+    "out".to_string(),
+    "coverage".to_string(),
+    ".turbo".to_string(),
+    ".vite".to_string(),
+
+    // Python
+    "__pycache__".to_string(),
+    ".pytest_cache".to_string(),
+    ".mypy_cache".to_string(),
+    ".ruff_cache".to_string(),
+    ".hypothesis".to_string(),
+    ".tox".to_string(),
+    ".nox".to_string(),
+    ".venv".to_string(),
+    "venv".to_string(),
+    "env".to_string(),
+    ".env".to_string(),
+
+    // Java / JVM
+    "target".to_string(),     // Maven / Rust overlap
+    "build".to_string(),      // Gradle
+    ".gradle".to_string(),
+    "out".to_string(),
+    "*.class".to_string(),
+
+    // Go
+    "bin".to_string(),
+    "pkg".to_string(),
+    "*.test".to_string(),
+    "vendor".to_string(), // sometimes not waste, use carefully
+
+    // Rust
+    "target".to_string(),
+    "**/*.rs.bk".to_string(),
+
+    // General
+    ".git".to_string(),
+    ".idea".to_string(),
+    ".vscode".to_string(),
+    "*.log".to_string(),
+    "*.tmp".to_string(),
+    "*.swp".to_string(),
+    "*.lock".to_string(),
+    "tmp".to_string(),
+    "temp".to_string(),
+];
         if let Some(custom) = ignore_patterns {
             ignores.extend(custom);
         }
