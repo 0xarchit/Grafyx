@@ -1,5 +1,6 @@
 use crate::ir::{Graph, Node, Edge, NodeKind, RelationType};
 use rusqlite::{params, Connection};
+use std::fs;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
@@ -215,10 +216,12 @@ impl Storage {
         let file_path = output_dir.join("index.html");
         let template = include_str!("template.html");
         let json_data = serde_json::to_string(graph).context("Failed to serialize graph for HTML")?;
-        let final_html = template.replace("{{GRAPH_DATA_PLACEHOLDER}}", &json_data);
-        let mut file = File::create(&file_path).with_context(|| format!("Failed to create HTML file at {:?}", file_path))?;
-        use std::io::Write;
-        file.write_all(final_html.as_bytes()).context("Failed to write HTML content")?;
+        
+        // Escape </script> to prevent breaking out of the <script> block in HTML
+        let sanitized_json = json_data.replace("</script>", "<\\/script>");
+        
+        let final_html = template.replace("{{GRAPH_DATA_PLACEHOLDER}}", &sanitized_json);
+        fs::write(&file_path, final_html).with_context(|| format!("Failed to write HTML report to {:?}", file_path))?;
         Ok(())
     }
 }

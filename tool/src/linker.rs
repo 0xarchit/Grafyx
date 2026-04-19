@@ -5,6 +5,12 @@ pub struct Linker {
     dirs: Vec<String>,
 }
 
+struct ServiceMapping {
+    id: String,
+    name: String,
+    dir: String,
+}
+
 impl Linker {
     pub fn new(dirs: Vec<String>) -> Self {
         Self { dirs }
@@ -23,35 +29,40 @@ impl Linker {
             end_line: 0,
         });
  
-        let mut sorted_dirs: Vec<_> = self.dirs.iter().collect();
-        sorted_dirs.sort_by_key(|d| std::cmp::Reverse(d.len()));
- 
-        let mut service_map = HashMap::new();
-        for dir in &self.dirs {
+        // Consolidate service mapping and sort by length for longest-prefix match
+        let mut services: Vec<ServiceMapping> = self.dirs.iter().map(|dir| {
             let service_name = std::path::Path::new(dir)
                 .file_name()
                 .and_then(|s| s.to_str())
                 .unwrap_or(dir);
             let service_id = format!("SERVICE::{}", service_name);
             
-            graph.nodes.push(crate::ir::Node {
-                id: service_id.clone(),
-                kind: crate::ir::NodeKind::Service,
+            ServiceMapping {
+                id: service_id,
                 name: service_name.to_string(),
+                dir: dir.clone(),
+            }
+        }).collect();
+        
+        services.sort_by_key(|s| std::cmp::Reverse(s.dir.len()));
+
+        for svc in &services {
+            graph.nodes.push(crate::ir::Node {
+                id: svc.id.clone(),
+                kind: crate::ir::NodeKind::Service,
+                name: svc.name.clone(),
                 language: "service".to_string(),
-                file_path: dir.clone(),
-                service: service_name.to_string(),
+                file_path: svc.dir.clone(),
+                service: svc.name.clone(),
                 start_line: 0,
                 end_line: 0,
             });
             
             graph.edges.push(crate::ir::Edge {
                 from_node_id: root_id.clone(),
-                to_node_id: service_id.clone(),
+                to_node_id: svc.id.clone(),
                 relation_type: crate::ir::RelationType::RootLink,
             });
-            
-            service_map.insert(dir.clone(), (service_id, service_name.to_string()));
         }
  
         let mut unique_nodes: HashMap<String, String> = HashMap::new();
@@ -71,6 +82,8 @@ impl Linker {
         }
  
         let old_nodes = std::mem::take(&mut graph.nodes);
+        let mut key_buffer = String::with_capacity(256);
+        
         for mut node in old_nodes {
             if node.kind == crate::ir::NodeKind::Root || node.kind == crate::ir::NodeKind::Service {
                 final_nodes.push(node);
@@ -78,17 +91,15 @@ impl Linker {
             }
             
             // Assign service via longest prefix match
-            for dir in &sorted_dirs {
-                if node.file_path.starts_with(*dir) {
-                    if let Some((svc_id, svc_name)) = service_map.get(*dir) {
-                        node.service = svc_name.clone();
-                        if node.kind == crate::ir::NodeKind::File {
-                            graph.edges.push(crate::ir::Edge {
-                                from_node_id: svc_id.clone(),
-                                to_node_id: node.id.clone(),
-                                relation_type: crate::ir::RelationType::RootLink,
-                            });
-                        }
+            for svc in &services {
+                if node.file_path.starts_with(&svc.dir) {
+                    node.service = svc.name.clone();
+                    if node.kind == crate::ir::NodeKind::File {
+                        graph.edges.push(crate::ir::Edge {
+                            from_node_id: svc.id.clone(),
+                            to_node_id: node.id.clone(),
+                            relation_type: crate::ir::RelationType::RootLink,
+                        });
                     }
                     break;
                 }
@@ -105,21 +116,25 @@ impl Linker {
                     }) {
                         id_map.insert(node.id.clone(), file_id.clone());
                     } else {
-                        let key = format!("{:?}::{}::{}", node.kind, node.name, node.file_path);
-                        if let Some(existing_id) = unique_nodes.get(&key) {
+                        key_buffer.clear();
+                        use std::fmt::Write;
+                        let _ = write!(key_buffer, "{:?}::{}::{}", node.kind, node.name, node.file_path);
+                        if let Some(existing_id) = unique_nodes.get(&key_buffer) {
                             id_map.insert(node.id.clone(), existing_id.clone());
                         } else {
-                            unique_nodes.insert(key, node.id.clone());
+                            unique_nodes.insert(key_buffer.clone(), node.id.clone());
                             final_nodes.push(node);
                         }
                     }
                 }
                 _ => {
-                    let key = format!("{:?}::{}::{}", node.kind, node.name, node.file_path);
-                    if let Some(existing_id) = unique_nodes.get(&key) {
+                    key_buffer.clear();
+                    use std::fmt::Write;
+                    let _ = write!(key_buffer, "{:?}::{}::{}", node.kind, node.name, node.file_path);
+                    if let Some(existing_id) = unique_nodes.get(&key_buffer) {
                         id_map.insert(node.id.clone(), existing_id.clone());
                     } else {
-                        unique_nodes.insert(key, node.id.clone());
+                        unique_nodes.insert(key_buffer.clone(), node.id.clone());
                         final_nodes.push(node);
                     }
                 }
@@ -137,9 +152,10 @@ impl Linker {
         }
         
         let mut unique_edges = HashSet::new();
-        let mut final_edges = Vec::new();
+        let mut final_edges = Vec::with_capacity(graph.edges.len());
         for edge in std::mem::take(&mut graph.edges) {
             if edge.from_node_id == edge.to_node_id { continue; }
+            
             let sig = (edge.from_node_id.clone(), edge.to_node_id.clone(), edge.relation_type.clone());
             if !unique_edges.contains(&sig) {
                 unique_edges.insert(sig);
