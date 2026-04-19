@@ -50,7 +50,7 @@ fn main() {
             );
             let rust_parser = GenericParser::new(
                 tree_sitter_rust::language(),
-                "[(call_expression function: (identifier) @n) (call_expression function: (field_expression field: (field_identifier) @n)) (macro_invocation macro: (identifier) @n) (use_declaration argument: (scoped_identifier name: (identifier) @n))]",
+                "[(mod_item name: (identifier) @n) (call_expression function: (identifier) @n) (call_expression function: (field_expression field: (field_identifier) @n)) (macro_invocation macro: (identifier) @n) (use_declaration argument: (scoped_identifier name: (identifier) @n))]",
                 "rust",
             );
 

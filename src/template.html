@@ -300,6 +300,7 @@ rawData.nodes.forEach(n => {
         let v = parseFloat(e.target.value);
         state[id] = v;
         document.getElementById('val-' + id).innerText = v;
+        state.isReplaying = false;
         updatePhysics();
     });
 });
@@ -308,7 +309,8 @@ const chkMap = { 'chk-funcs': 'showFuncs', 'chk-imports': 'showImports', 'chk-ca
 Object.keys(chkMap).forEach(id => {
     document.getElementById(id).addEventListener('change', e => {
         state[chkMap[id]] = e.target.checked;
-        if (!state.isReplaying) refreshData();
+        state.isReplaying = false;
+        refreshData();
     });
 });
 
@@ -444,6 +446,10 @@ const Graph = ForceGraph()(document.getElementById('graph'))
         if (!state.isReplaying) refreshData();
     });
 
+// Install initial custom forces missing on default
+Graph.d3Force('x', d3.forceX().strength(state.gravity));
+Graph.d3Force('y', d3.forceY().strength(state.gravity));
+
 updatePhysics();
 
 function refreshData() {
@@ -452,9 +458,12 @@ function refreshData() {
     document.getElementById('stat-nodes').innerText = updated.nodes.length;
     document.getElementById('stat-edges').innerText = updated.edges.length;
     
+    let existMap = new Map();
+    Graph.graphData().nodes.forEach(n => existMap.set(n.id, n));
+
     let g = {
         nodes: updated.nodes.map(n => {
-            let exist = Graph.graphData().nodes.find(old => old.id === n.id);
+            let exist = existMap.get(n.id);
             let payload = {...n, val: n.kind === 'File' ? 8 : 4};
             if (exist) {
                 payload.x = exist.x; payload.y = exist.y; payload.vx = exist.vx; payload.vy = exist.vy;
@@ -471,13 +480,19 @@ function refreshData() {
 }
 
 function updatePhysics() {
-    Graph.d3Force('charge', d3.forceManyBody().strength(state.charge))
-         .d3Force('link', d3.forceLink().distance(state.distance).id(d => d.id))
-         .d3Force('center', d3.forceCenter())
-         .d3Force('x', d3.forceX().strength(state.gravity))
-         .d3Force('y', d3.forceY().strength(state.gravity))
-         .d3VelocityDecay(state.friction);
+    let charge = Graph.d3Force('charge');
+    if (charge) charge.strength(state.charge);
     
+    let link = Graph.d3Force('link');
+    if (link) link.distance(state.distance);
+    
+    let fx = Graph.d3Force('x');
+    if (fx) fx.strength(state.gravity);
+    
+    let fy = Graph.d3Force('y');
+    if (fy) fy.strength(state.gravity);
+         
+    Graph.d3VelocityDecay(state.friction);
     Graph.d3ReheatSimulation();
 }
 
@@ -500,8 +515,13 @@ function playReplay() {
     Graph.graphData(g);
 
     let interval = setInterval(() => {
+        if (!state.isReplaying) {
+            clearInterval(interval);
+            refreshData();
+            return;
+        }
+
         let nAdded = 0;
-        
         while (nAdded < 5 && nIdx < orderedNodes.length) {
             let n = orderedNodes[nIdx++];
             currentNodes.push({...n, val: n.kind === 'File' ? 8 : 4});
