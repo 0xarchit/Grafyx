@@ -1,21 +1,29 @@
 use super::CodeParser;
 use crate::ir::{Edge, Node, NodeKind, RelationType};
 use std::path::Path;
-use tree_sitter::{Parser as TSParser, Query, QueryCursor};
+use tree_sitter::{Language, Parser as TSParser, Query, QueryCursor};
 use uuid::Uuid;
 
-pub struct JsParser;
+pub struct GenericParser {
+    language: Language,
+    query_str: &'static str,
+    lang_name: &'static str,
+}
 
-impl JsParser {
-    pub fn new() -> Self {
-        Self
+impl GenericParser {
+    pub fn new(language: Language, query_str: &'static str, lang_name: &'static str) -> Self {
+        Self {
+            language,
+            query_str,
+            lang_name,
+        }
     }
 }
 
-impl CodeParser for JsParser {
+impl CodeParser for GenericParser {
     fn parse(&self, file_path: &Path, content: &str) -> (Vec<Node>, Vec<Edge>) {
         let mut parser = TSParser::new();
-        parser.set_language(&tree_sitter_javascript::language()).expect("Language set error");
+        let _ = parser.set_language(&self.language);
         
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
@@ -32,14 +40,13 @@ impl CodeParser for JsParser {
             id: file_id,
             kind: NodeKind::File,
             name: file_name.clone(),
-            language: "javascript".to_string(),
+            language: self.lang_name.to_string(),
             file_path: file_name.clone(),
             start_line: 0,
             end_line: content.lines().count(),
         });
         
-        let query_str = "(call_expression function: (identifier) @call_name)";
-        if let Ok(query) = Query::new(&tree_sitter_javascript::language(), query_str) {
+        if let Ok(query) = Query::new(&self.language, self.query_str) {
             let mut cursor = QueryCursor::new();
             let matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
             
@@ -51,7 +58,7 @@ impl CodeParser for JsParser {
                             id: call_id,
                             kind: NodeKind::Function,
                             name: call_name.to_string(),
-                            language: "javascript".to_string(),
+                            language: self.lang_name.to_string(),
                             file_path: file_name.clone(),
                             start_line: capture.node.start_position().row,
                             end_line: capture.node.end_position().row,

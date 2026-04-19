@@ -1,4 +1,4 @@
-pub mod js;
+pub mod generic;
 
 use crate::ir::{Edge, Node};
 use std::path::Path;

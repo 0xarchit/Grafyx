@@ -9,7 +9,7 @@ use clap::Parser;
 use cli::{Cli, Commands};
 use ir::Graph;
 use linker::Linker;
-use parser::{js::JsParser, CodeParser};
+use parser::{generic::GenericParser, CodeParser};
 use scanner::{Language, Scanner};
 use std::fs;
 use std::path::Path;
@@ -22,15 +22,60 @@ fn main() {
             let scanner = Scanner::new(dirs.clone(), ignore.clone());
             let files = scanner.scan();
             let mut graph = Graph::new();
-            let js_parser = JsParser::new();
+            
+            let js_parser = GenericParser::new(
+                tree_sitter_javascript::language(),
+                "(call_expression function: (identifier) @call_name)",
+                "javascript",
+            );
+            let ts_parser = GenericParser::new(
+                tree_sitter_typescript::language_typescript(),
+                "(call_expression function: (identifier) @call_name)",
+                "typescript",
+            );
+            let py_parser = GenericParser::new(
+                tree_sitter_python::language(),
+                "(call function: (identifier) @call_name)",
+                "python",
+            );
+            let java_parser = GenericParser::new(
+                tree_sitter_java::language(),
+                "(method_invocation name: (identifier) @call_name)",
+                "java",
+            );
+            let go_parser = GenericParser::new(
+                tree_sitter_go::language(),
+                "(call_expression function: (identifier) @call_name)",
+                "go",
+            );
+            let rust_parser = GenericParser::new(
+                tree_sitter_rust::language(),
+                "(call_expression function: (identifier) @call_name)",
+                "rust",
+            );
 
             for (file_path, lang) in files {
                 if let Ok(content) = fs::read_to_string(&file_path) {
-                    if lang == Language::JavaScript {
-                        let (nodes, edges) = js_parser.parse(&file_path, &content);
-                        graph.nodes.extend(nodes);
-                        graph.edges.extend(edges);
-                    }
+                    let (nodes, edges) = match lang {
+                        Language::JavaScript => js_parser.parse(&file_path, &content),
+                        Language::Python => py_parser.parse(&file_path, &content),
+                        Language::Go => go_parser.parse(&file_path, &content),
+                        Language::Rust => rust_parser.parse(&file_path, &content),
+                        Language::Java => java_parser.parse(&file_path, &content),
+                        Language::Unknown => {
+                            if let Some(ext) = file_path.extension().and_then(|s| s.to_str()) {
+                                if ext == "ts" || ext == "tsx" {
+                                    ts_parser.parse(&file_path, &content)
+                                } else {
+                                    (Vec::new(), Vec::new())
+                                }
+                            } else {
+                                (Vec::new(), Vec::new())
+                            }
+                        }
+                    };
+                    graph.nodes.extend(nodes);
+                    graph.edges.extend(edges);
                 }
             }
 
