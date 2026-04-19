@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Build and Release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: grafyx
+            asset_name: grafyx-linux-amd64
+            archive_ext: tar.gz
+          - os: windows-latest
+            artifact_name: grafyx.exe
+            asset_name: grafyx-windows-amd64.exe
+            archive_ext: zip
+          - os: macos-latest
+            artifact_name: grafyx
+            asset_name: grafyx-macos-amd64
+            archive_ext: tar.gz
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Release Notes
+        id: notes
+        shell: bash
+        run: |
+          VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          if [ -f "tool/release.json" ] && jq -e --arg v "$VERSION" '.[$v]' tool/release.json > /dev/null; then
+            NOTE=$(jq -r --arg v "$VERSION" '.[$v].Note // ""' tool/release.json)
+            DESC=$(jq -r --arg v "$VERSION" '.[$v].Description // ""' tool/release.json)
+            FEATS=$(jq -r --arg v "$VERSION" '.[$v].Features[] // empty' tool/release.json | sed 's/^/- /')
+            
+            echo "BODY<<EOF" >> $GITHUB_OUTPUT
+            [ ! -z "$NOTE" ] && echo "$NOTE" >> $GITHUB_OUTPUT && echo "" >> $GITHUB_OUTPUT
+            [ ! -z "$DESC" ] && echo "$DESC" >> $GITHUB_OUTPUT && echo "" >> $GITHUB_OUTPUT
+            [ ! -z "$FEATS" ] && echo "### Features" >> $GITHUB_OUTPUT && echo "$FEATS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "BODY=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run Tests
+        working-directory: tool
+        run: cargo test --release
+
+      - name: Build Release
+        working-directory: tool
+        run: cargo build --release
+
+      - name: Package Binaries (Unix)
+        if: matrix.os != 'windows-latest'
+        working-directory: tool
+        run: |
+          mkdir -p dist
+          cp target/release/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
+          tar -czvf dist/${{ matrix.asset_name }}.tar.gz -C dist ${{ matrix.asset_name }}
+
+      - name: Package Binaries (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        working-directory: tool
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item target/release/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
+          Compress-Archive -Path dist/${{ matrix.asset_name }} -DestinationPath dist/${{ matrix.asset_name }}.zip
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ steps.notes.outputs.BODY }}
+          files: |
+            tool/dist/${{ matrix.asset_name }}
+            tool/dist/${{ matrix.asset_name }}.${{ matrix.archive_ext }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
