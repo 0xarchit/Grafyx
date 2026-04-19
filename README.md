@@ -15,6 +15,8 @@
 Visualize Your Codebase Like Never Before
 ```
 
+<br>_*This project May have bug for now it is in Beta Phase*_
+
 </div>
 
 [![Status](https://img.shields.io/badge/Status-Active%20Development-000000.svg?style=for-the-badge&logo=rocket&logoColor=white&labelColor=000000&color=000000)](https://github.com/0xarchit/grafyx)
