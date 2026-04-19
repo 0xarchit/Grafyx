@@ -241,6 +241,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "grafyx"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "ignore",
+ "rayon",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tree-sitter",
+ "tree-sitter-go",
+ "tree-sitter-java",
+ "tree-sitter-javascript",
+ "tree-sitter-python",
+ "tree-sitter-rust",
+ "tree-sitter-typescript",
+ "uuid",
+ "walkdir",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -333,27 +354,6 @@ checksum = "2964e92d1d9dc3364cae4d718d93f227e3abb088e747d92e0395bfdedf1c12ca"
 dependencies = [
  "once_cell",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "kgraph"
-version = "0.1.0"
-dependencies = [
- "clap",
- "ignore",
- "rayon",
- "rusqlite",
- "serde",
- "serde_json",
- "tree-sitter",
- "tree-sitter-go",
- "tree-sitter-java",
- "tree-sitter-javascript",
- "tree-sitter-python",
- "tree-sitter-rust",
- "tree-sitter-typescript",
- "uuid",
- "walkdir",
 ]
 
 [[package]]
