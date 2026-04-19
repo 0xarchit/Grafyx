@@ -38,6 +38,14 @@ impl Scanner {
             "dist".to_string(),
             "build".to_string(),
             ".git".to_string(),
+            ".next".to_string(),
+            ".cache".to_string(),
+            ".svelte-kit".to_string(),
+            "out".to_string(),
+            "coverage".to_string(),
+            ".venv".to_string(),
+            "venv".to_string(),
+            "env".to_string(),
         ];
         if let Some(custom) = ignore_patterns {
             ignores.extend(custom);
