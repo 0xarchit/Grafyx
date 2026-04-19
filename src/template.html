@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>kgraph</title>
+<script src="https://unpkg.com/d3@7.8.5/dist/d3.min.js"></script>
 <script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
@@ -199,6 +200,32 @@ input[type="range"]::-webkit-slider-thumb {
     display: flex; align-items: center; gap: 8px;
     font-size: 0.68rem; color: #555; margin-bottom: 5px;
 }
+
+.label-mode-group {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+    margin-bottom: 2px;
+}
+.lm-btn {
+    flex: 1;
+    padding: 4px 0;
+    font-size: 0.64rem;
+    font-weight: 500;
+    text-align: center;
+    border-radius: 5px;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+    color: #555;
+    transition: background .15s, color .15s, border-color .15s;
+    font-family: inherit;
+}
+.lm-btn.active {
+    background: rgba(124,144,219,0.15);
+    color: #7c90db;
+    border-color: rgba(124,144,219,0.3);
+}
 .legend-dot {
     width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
 }
@@ -222,6 +249,15 @@ input[type="range"]::-webkit-slider-thumb {
     <label class="chk-row"><input type="checkbox" id="chk-imports" checked> Imports</label>
     <label class="chk-row"><input type="checkbox" id="chk-calls"> Calls</label>
     <label class="chk-row"><input type="checkbox" id="chk-arrows"> Arrows</label>
+
+    <div class="section-title">Labels</div>
+    <div class="label-mode-group">
+        <button class="lm-btn" id="lm-off">Off</button>
+        <button class="lm-btn active" id="lm-hover">Hover</button>
+        <button class="lm-btn" id="lm-smart">Smart</button>
+        <button class="lm-btn" id="lm-all">All</button>
+    </div>
+
 
     <div class="section-title">Physics</div>
 
@@ -314,11 +350,14 @@ let state = {
     showCalls: false,
     arrows: false,
 
+    labelMode: 'hover',
+
     zoom: 1,
     hover: null,
     focus: null,
     replaying: false
 };
+
 
 const adjMap = new Map();
 RAW.edges.forEach(e => {
@@ -329,10 +368,13 @@ RAW.edges.forEach(e => {
     adjMap.get(b).add(a);
 });
 function edgeId(e, side) {
-    const v = side === 'from' ? e.from_node_id : e.to_node_id;
-    return typeof v === 'object' ? v.id : v;
+    const v = side === 'from' ? (e.from_node_id || e.source) : (e.to_node_id || e.target);
+    if (!v) return null;
+    if (typeof v === 'object') return v.id || v;
+    return v;
 }
 function neighbors(id) { return adjMap.get(id) || new Set(); }
+
 
 const serviceSet = new Set();
 RAW.nodes.forEach(n => { if (n.kind === 'Service') serviceSet.add(n.service); });
@@ -418,12 +460,13 @@ const Graph = ForceGraph()(GraphEl)
     })
     .nodeColor(nodeColor)
     .nodeLabel(() => '')
-    .linkSource(e => edgeId(e, 'from'))
-    .linkTarget(e => edgeId(e, 'to'))
+    .linkSource('source')
+    .linkTarget('target')
+
     .linkColor(e => {
         if (!state.focus && !state.hover) return EDGE_COLORS[e.relation_type] || EDGE_COLORS.default;
         const active = state.focus || state.hover;
-        const a = edgeId(e, 'from'), b = edgeId(e, 'to');
+        const a = e.source.id || e.source, b = e.target.id || e.target;
         if (a === active.id || b === active.id) return EDGE_COLORS[e.relation_type] || EDGE_COLORS.default;
         return 'rgba(80,80,80,0.06)';
     })
@@ -433,9 +476,10 @@ const Graph = ForceGraph()(GraphEl)
                      e.relation_type === 'Imports' ? 0.8 : 0.5;
         if (!state.focus && !state.hover) return base;
         const active = state.focus || state.hover;
-        const a = edgeId(e, 'from'), b = edgeId(e, 'to');
+        const a = e.source.id || e.source, b = e.target.id || e.target;
         return (a === active.id || b === active.id) ? base + 0.8 : base * 0.3;
     })
+
     .linkLineDash(e => e.relation_type === 'Calls' ? [2, 2] : null)
     .linkDirectionalArrowLength(e => state.arrows && e.relation_type !== 'RootLink' ? 3 : 0)
     .linkDirectionalArrowRelPos(1)
@@ -498,12 +542,25 @@ const Graph = ForceGraph()(GraphEl)
             ctx.stroke();
         }
 
-        const showLabel = n.kind === 'Root' ||
-                          n.kind === 'Service' ||
-                          (z > 0.3 && (n.kind === 'File' || n.kind === 'Module')) ||
-                          (z > 1.2 && n.kind === 'Function') ||
-                          (state.hover && state.hover.id === n.id) ||
-                          (state.focus && state.focus.id === n.id);
+        const isHovered = state.hover && state.hover.id === n.id;
+        const isFocused = state.focus && state.focus.id === n.id;
+        const isAlwaysLabelled = n.kind === 'Root' || n.kind === 'Service';
+
+        let showLabel = false;
+        const lm = state.labelMode;
+        if (lm === 'all') {
+            showLabel = true;
+        } else if (lm === 'off') {
+            showLabel = isHovered || isFocused;
+        } else if (lm === 'hover') {
+            showLabel = isAlwaysLabelled || isHovered || isFocused;
+        } else {
+            showLabel = isAlwaysLabelled ||
+                        (z > 0.3 && (n.kind === 'File' || n.kind === 'Module')) ||
+                        (z > 1.2 && n.kind === 'Function') ||
+                        isHovered || isFocused;
+        }
+
 
         if (showLabel) {
             const fs = Math.min(Math.max(10 / z, 2), 16);
@@ -522,37 +579,40 @@ Graph.d3Force('x', null);
 Graph.d3Force('y', null);
 
 function applyForces() {
-    const sim = Graph.d3Force;
+    try {
+        const sim = Graph.d3Force;
 
-    const charge = sim('charge');
-    if (charge) charge.strength(state.charge).distanceMax(500);
+        const charge = sim('charge');
+        if (charge) charge.strength(state.charge).distanceMax(500);
 
-    const link = sim('link');
-    if (link) {
-        link.distance(e => {
-            const baseD = state.dist;
-            return baseD / (e._w || 1);
-        }).strength(e => {
-            if (e.relation_type === 'RootLink') return 0.8;
-            if (e.relation_type === 'ServiceCall') return 0.5;
-            return 0.3;
-        }).iterations(3);
-    }
+        const link = sim('link');
+        if (link) {
+            link.distance(e => {
+                const baseD = state.dist;
+                return baseD / (e._w || 1);
+            }).strength(e => {
+                if (e.relation_type === 'RootLink') return 0.8;
+                if (e.relation_type === 'ServiceCall') return 0.5;
+                return 0.3;
+            }).iterations(3);
+        }
 
-    sim('x', d3.forceX(0).strength(state.grav));
-    sim('y', d3.forceY(0).strength(state.grav));
+        sim('x', d3.forceX(0).strength(state.grav));
+        sim('y', d3.forceY(0).strength(state.grav));
 
-    sim('collide', d3.forceCollide().radius(n => {
-        if (n.kind === 'Root') return 20;
-        if (n.kind === 'Service') return 14;
-        if (n.kind === 'File' || n.kind === 'Module') return 8;
-        return 4;
-    }).strength(0.6).iterations(2));
+        sim('collide', d3.forceCollide().radius(n => {
+            if (n.kind === 'Root') return 20;
+            if (n.kind === 'Service') return 14;
+            if (n.kind === 'File' || n.kind === 'Module') return 8;
+            return 4;
+        }).strength(0.6).iterations(2));
 
-    Graph.d3VelocityDecay(state.damp);
-    Graph.d3AlphaDecay(0.015);
-    Graph.d3Alpha(1).d3ReheatSimulation();
+        Graph.d3VelocityDecay(state.damp);
+        Graph.d3AlphaDecay(0.015);
+        Graph.d3Alpha(1).d3ReheatSimulation();
+    } catch (e) { console.error("Physics Error:", e); }
 }
+
 
 function buildGraphData(replot = false) {
     const { nodes, edges } = computeGraph();
@@ -630,7 +690,9 @@ function softRefresh() {
     }));
 
     Graph.graphData({ nodes: newNodes, links: newLinks });
+    applyForces();
 }
+
 
 function playReplay() {
     if (state.replaying) return;
@@ -744,7 +806,18 @@ Object.entries(chkMap).forEach(([id, key]) => {
     });
 });
 
+['lm-off','lm-hover','lm-smart','lm-all'].forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+        state.labelMode = id.replace('lm-','');
+        document.querySelectorAll('.lm-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        Graph.d3Alpha(0.01).d3ReheatSimulation(); // Force quick redraw
+    });
+});
+
+
 document.getElementById('btn-resim').addEventListener('click', () => {
+
     buildGraphData(true);
 });
 
