@@ -18,7 +18,7 @@ use storage::Storage;
 fn main() {
     let cli = Cli::parse();
     match &cli.command {
-        Commands::Scan { dirs, merge, ignore, format, output } => {
+        Commands::Scan { dirs, merge: _, ignore, format, output } => {
             let scanner = Scanner::new(dirs.clone(), ignore.clone());
             let files = scanner.scan();
             let mut graph = Graph::new();

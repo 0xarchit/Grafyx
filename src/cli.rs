@@ -10,13 +10,13 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     Scan {
-        #[arg(long, value_delimiter = ',')]
+        #[arg(long, num_args = 1..)]
         dirs: Vec<String>,
 
         #[arg(long, default_value_t = false)]
         merge: bool,
 
-        #[arg(long, value_delimiter = ',')]
+        #[arg(long, num_args = 1..)]
         ignore: Option<Vec<String>>,
 
         #[arg(long, default_value = "both")]
