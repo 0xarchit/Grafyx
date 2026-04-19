@@ -41,6 +41,7 @@ impl CodeParser for GenericParser {
             name: file_name.clone(),
             language: self.lang_name.to_string(),
             file_path: file_name.clone(),
+            service: "".to_string(),
             start_line: 0,
             end_line: content.lines().count(),
         });
@@ -70,6 +71,7 @@ impl CodeParser for GenericParser {
                             name: name.to_string(),
                             language: self.lang_name.to_string(),
                             file_path: file_name.clone(),
+                            service: "".to_string(),
                             start_line: capture.node.start_position().row,
                             end_line: capture.node.end_position().row,
                         });

@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum NodeKind {
+    Root,
+    Service,
     File,
     Module,
     Class,
@@ -11,13 +13,14 @@ pub enum NodeKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum RelationType {
+    RootLink,
+    ServiceCall,
     Imports,
     Calls,
     Defines,
     Extends,
     Implements,
     Uses,
-    CallsService,
     ApiLink,
 }
 
@@ -28,6 +31,7 @@ pub struct Node {
     pub name: String,
     pub language: String,
     pub file_path: String,
+    pub service: String,
     pub start_line: usize,
     pub end_line: usize,
 }

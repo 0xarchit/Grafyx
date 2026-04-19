@@ -210,9 +210,12 @@ body {
         <h2>Appearance Filters</h2>
         <label class="checkbox-item"><input type="checkbox" id="chk-arrows"> Directional Arrows</label>
         <label class="checkbox-item"><input type="checkbox" id="chk-funcs" checked> Show Functions</label>
+        <label class="checkbox-item"><input type="checkbox" id="chk-classes" checked> Show Classes</label>
+        <label class="checkbox-item"><input type="checkbox" id="chk-vars"> Show Variables</label>
         <label class="checkbox-item"><input type="checkbox" id="chk-imports" checked> Show Imports</label>
         <label class="checkbox-item"><input type="checkbox" id="chk-calls" checked> Show Calls</label>
     </div>
+
 
     <div class="control-group">
         <h2>Physics Engine</h2>
@@ -229,13 +232,15 @@ body {
             <input type="range" id="ctrl-gravity" min="0" max="1" step="0.01" value="0.05">
         </div>
         <div class="control-item">
-            <label><span>Damping (Friction)</span> <span id="val-friction">0.8</span></label>
-            <input type="range" id="ctrl-friction" min="0" max="1" step="0.01" value="0.8">
+            <label><span>Damping (Decay)</span> <span id="val-damping">0.4</span></label>
+            <input type="range" id="ctrl-damping" min="0" max="1" step="0.01" value="0.4">
         </div>
         <div class="control-item">
             <label><span>Simulation Speed</span> <span id="val-speed">0.05</span></label>
             <input type="range" id="ctrl-speed" min="0.001" max="0.1" step="0.001" value="0.05">
         </div>
+        <button id="btn-resimulate" class="action-btn">Resimulate Layout</button>
+
     </div>
 </div>
 
@@ -267,11 +272,12 @@ let state = {
     charge: -140,
     distance: 40,
     gravity: 0.05,
-        friction: 0.8,
+    damping: 0.4,
     speed: 0.05,
     
-    
     showFuncs: true,
+    showClasses: true,
+    showVars: false,
     showImports: true,
     showCalls: true,
     arrows: false,
@@ -283,6 +289,7 @@ let state = {
     focusedNode: null,
     isReplaying: false
 };
+
 
 const serviceMap = {};
 rawData.nodes.forEach(n => {
@@ -301,8 +308,10 @@ rawData.nodes.forEach(n => {
 });
 
 // Controls
-['charge', 'distance', 'gravity', 'friction', 'speed'].forEach(id => {
-    document.getElementById('ctrl-' + id).addEventListener('input', e => {
+['charge', 'distance', 'gravity', 'damping', 'speed'].forEach(id => {
+    const el = document.getElementById('ctrl-' + id);
+    if (!el) return;
+    el.addEventListener('input', e => {
         let v = parseFloat(e.target.value);
         state[id] = v;
         document.getElementById('val-' + id).innerText = v;
@@ -311,7 +320,15 @@ rawData.nodes.forEach(n => {
     });
 });
 
-const chkMap = { 'chk-funcs': 'showFuncs', 'chk-imports': 'showImports', 'chk-calls': 'showCalls', 'chk-arrows': 'arrows' };
+const chkMap = { 
+    'chk-funcs': 'showFuncs', 
+    'chk-classes': 'showClasses', 
+    'chk-vars': 'showVars',
+    'chk-imports': 'showImports', 
+    'chk-calls': 'showCalls', 
+    'chk-arrows': 'arrows' 
+};
+
 Object.keys(chkMap).forEach(id => {
     document.getElementById(id).addEventListener('change', e => {
         state[chkMap[id]] = e.target.checked;
@@ -335,10 +352,19 @@ function getNeighbors(nodeId) {
 }
 
 function computeData() {
-    const renderFuncs = state.showFuncs && state.scale > state.lodThreshold;
+    const zoomLevel = state.scale;
     
     let nodes = rawData.nodes.filter(n => {
-        if (!renderFuncs && n.kind !== 'File' && n.kind !== 'Module') return false;
+        if (n.kind === 'Root' || n.kind === 'Service') return true;
+        
+        // LOD Filtering
+        if (zoomLevel < 0.2) return n.kind === 'File' || n.kind === 'Module';
+        if (zoomLevel < 0.5) return n.kind !== 'Function' && n.kind !== 'Variable';
+
+        if (!state.showFuncs && n.kind === 'Function') return false;
+        if (!state.showClasses && n.kind === 'Class') return false;
+        if (!state.showVars && n.kind === 'Variable') return false;
+        
         return true;
     });
     
@@ -355,7 +381,8 @@ function computeData() {
         return true;
     }).map(e => {
         let w = 1.0;
-        if (e.relation_type === 'CallsService') w = 3.0;
+        if (e.relation_type === 'RootLink') w = 5.0;
+        else if (e.relation_type === 'ServiceCall') w = 3.0;
         else if (e.relation_type === 'Imports') w = 2.0;
         else if (e.relation_type === 'Calls') w = 1.0;
         else w = 0.5;
@@ -364,6 +391,7 @@ function computeData() {
 
     return { nodes, edges };
 }
+
 
 const colors = {
     'rust': '#dea584', 'javascript': '#f1e05a', 'typescript': '#3178c6',
@@ -380,11 +408,16 @@ const Graph = ForceGraph()(document.getElementById('graph'))
     .graphData(gData)
     .nodeRelSize(5)
     .nodeId('id')
-    .nodeColor(n => colors[n.language] || '#66fcf1')
+    .nodeColor(n => {
+        if (n.kind === 'Root') return '#fff';
+        if (n.kind === 'Service') return '#66fcf1';
+        return colors[n.language] || '#c5c6c7';
+    })
     .linkColor(e => {
-        if (e.relation_type === 'CallsService') return 'rgba(255, 107, 107, 0.8)'; // Bold Red
+        if (e.relation_type === 'RootLink') return 'rgba(102, 252, 241, 0.15)'; // Subtle
+        if (e.relation_type === 'ServiceCall') return 'rgba(255, 107, 107, 0.8)'; // Bold Red
         if (e.relation_type === 'Imports') return 'rgba(74, 222, 128, 0.6)'; // Green
-        return 'rgba(102, 252, 241, 0.4)'; // Teal/Dashed
+        return 'rgba(102, 252, 241, 0.4)'; // Teal
     })
     .linkWidth(e => {
         let base = 1.0;
@@ -414,25 +447,32 @@ const Graph = ForceGraph()(document.getElementById('graph'))
         ctx.globalAlpha = alpha;
         
         const label = node.name;
-        const fontSize = (node.val === 8 ? 14 : 10) / globalScale;
-        ctx.font = `500 ${fontSize}px Inter, sans-serif`;
+        let size = 4;
+        if (node.kind === 'Root') size = 12;
+        else if (node.kind === 'Service') size = 10;
+        else if (node.kind === 'File' || node.kind === 'Module') size = 7;
+
+        node.val = size;
+
+        const fontSize = (size + 4) / globalScale;
+        ctx.font = `600 ${fontSize}px Inter, sans-serif`;
         
-        ctx.fillStyle = colors[node.language] || '#66fcf1';
+        ctx.fillStyle = (node.kind === 'Root' ? '#66fcf1' : (colors[node.language] || '#c5c6c7'));
         ctx.beginPath();
-        ctx.arc(node.x, node.y, node.val, 0, 2 * Math.PI, false);
+        ctx.arc(node.x, node.y, size, 0, 2 * Math.PI, false);
         ctx.fill();
         
         if (state.hoverNode && state.hoverNode.id === node.id) {
             ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 1;
+            ctx.lineWidth = 1.5;
             ctx.stroke();
         }
 
-        if (globalScale > Math.max(0.4, state.lodThreshold / 2)) {
+        if (globalScale > 0.4 || node.kind === 'Root' || node.kind === 'Service') {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
-            ctx.fillText(label, node.x, node.y + node.val + fontSize + 2);
+            ctx.fillText(label, node.x, node.y + size + fontSize + 2);
         }
         ctx.globalAlpha = 1.0; 
     })
@@ -474,21 +514,34 @@ Graph.d3Force('y', d3.forceY().strength(state.gravity));
 
 updatePhysics();
 
-function refreshData() {
+function refreshData(replot = false) {
     if (state.isReplaying) return;
     const updated = computeData();
     document.getElementById('stat-nodes').innerText = updated.nodes.length;
     document.getElementById('stat-edges').innerText = updated.edges.length;
     
     let existMap = new Map();
-    Graph.graphData().nodes.forEach(n => existMap.set(n.id, n));
+    if (!replot) {
+        Graph.graphData().nodes.forEach(n => existMap.set(n.id, n));
+    }
 
     let g = {
-        nodes: updated.nodes.map(n => {
+        nodes: updated.nodes.map((n, i) => {
             let exist = existMap.get(n.id);
-            let payload = {...n, val: n.kind === 'File' ? 8 : 4};
+            let payload = {...n};
+            
             if (exist) {
                 payload.x = exist.x; payload.y = exist.y; payload.vx = exist.vx; payload.vy = exist.vy;
+            } else if (replot || !exist) {
+                // Circular positioning
+                const angle = (i / updated.nodes.length) * 2 * Math.PI;
+                const radius = node => {
+                    if (node.kind === 'Root') return 0;
+                    if (node.kind === 'Service') return 200;
+                    return 400 + Math.random() * 200;
+                };
+                payload.x = radius(n) * Math.cos(angle);
+                payload.y = radius(n) * Math.sin(angle);
             }
             return payload;
         }),
@@ -499,6 +552,7 @@ function refreshData() {
         })
     };
     Graph.graphData(g);
+    if (replot) updatePhysics();
 }
 
 function updatePhysics() {
@@ -514,10 +568,15 @@ function updatePhysics() {
     let fy = Graph.d3Force('y');
     if (fy) fy.strength(state.gravity);
          
-    Graph.d3VelocityDecay(state.friction);
+    Graph.d3VelocityDecay(state.damping);
     Graph.d3AlphaDecay(state.speed);
     Graph.d3ReheatSimulation();
 }
+
+document.getElementById('btn-resimulate').addEventListener('click', () => {
+    refreshData(true);
+});
+
 
 function playReplay() {
     if (state.isReplaying) return;

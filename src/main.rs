@@ -79,7 +79,7 @@ fn main() {
                 }
             }
 
-            let linker = Linker::new();
+            let linker = Linker::new(dirs.clone());
             linker.link(&mut graph);
 
             let out_path = Path::new(output);

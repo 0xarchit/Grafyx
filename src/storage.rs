@@ -40,6 +40,8 @@ impl Storage {
 
             for node in &graph.nodes {
                 let kind_str = match node.kind {
+                    NodeKind::Root => "Root",
+                    NodeKind::Service => "Service",
                     NodeKind::File => "File",
                     NodeKind::Module => "Module",
                     NodeKind::Class => "Class",
@@ -62,13 +64,14 @@ impl Storage {
 
             for edge in &graph.edges {
                 let rel_str = match edge.relation_type {
+                    RelationType::RootLink => "RootLink",
+                    RelationType::ServiceCall => "ServiceCall",
                     RelationType::Imports => "Imports",
                     RelationType::Calls => "Calls",
                     RelationType::Defines => "Defines",
                     RelationType::Extends => "Extends",
                     RelationType::Implements => "Implements",
                     RelationType::Uses => "Uses",
-                    RelationType::CallsService => "CallsService",
                     RelationType::ApiLink => "ApiLink",
                 };
                 let _ = conn.execute(

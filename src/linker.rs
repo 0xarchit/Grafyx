@@ -1,21 +1,73 @@
-use crate::ir::{Graph, NodeKind};
+use crate::ir::Graph;
 use std::collections::{HashMap, HashSet};
 
-pub struct Linker;
+pub struct Linker {
+    dirs: Vec<String>,
+}
 
 impl Linker {
-    pub fn new() -> Self {
-        Self
+    pub fn new(dirs: Vec<String>) -> Self {
+        Self { dirs }
     }
 
     pub fn link(&self, graph: &mut Graph) {
+        // 1. Identify ROOT and Service Nodes
+        let root_id = "GLOBAL::ROOT".to_string();
+        graph.nodes.push(crate::ir::Node {
+            id: root_id.clone(),
+            kind: crate::ir::NodeKind::Root,
+            name: "ROOT".to_string(),
+            language: "global".to_string(),
+            file_path: "".to_string(),
+            service: "global".to_string(),
+            start_line: 0,
+            end_line: 0,
+        });
+
+        let mut service_map = HashMap::new();
+        for dir in &self.dirs {
+            let service_name = std::path::Path::new(dir)
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or(dir);
+            let service_id = format!("SERVICE::{}", service_name);
+            
+            graph.nodes.push(crate::ir::Node {
+                id: service_id.clone(),
+                kind: crate::ir::NodeKind::Service,
+                name: service_name.to_string(),
+                language: "service".to_string(),
+                file_path: dir.clone(),
+                service: service_name.to_string(),
+                start_line: 0,
+                end_line: 0,
+            });
+            
+            graph.edges.push(crate::ir::Edge {
+                from_node_id: root_id.clone(),
+                to_node_id: service_id.clone(),
+                relation_type: crate::ir::RelationType::RootLink,
+            });
+            
+            service_map.insert(dir.clone(), (service_id, service_name.to_string()));
+        }
+
+        // 2. Assign files to services and deduplicate
         let mut unique_nodes: HashMap<String, String> = HashMap::new();
         let mut final_nodes = Vec::new();
         let mut id_map = HashMap::new();
-
         let mut file_index = HashMap::new();
+
+        // Pass-through ROOT and SERVICE nodes already in graph
         for node in &graph.nodes {
-            if node.kind == NodeKind::File {
+            if node.kind == crate::ir::NodeKind::Root || node.kind == crate::ir::NodeKind::Service {
+                final_nodes.push(node.clone());
+                continue;
+            }
+        }
+
+        for node in &graph.nodes {
+            if node.kind == crate::ir::NodeKind::File {
                 let path = std::path::Path::new(&node.file_path);
                 if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                     file_index.insert(stem.to_string(), node.id.clone());
@@ -23,13 +75,31 @@ impl Linker {
             }
         }
 
-        for node in &graph.nodes {
+        for mut node in graph.nodes.clone() {
+            if node.kind == crate::ir::NodeKind::Root || node.kind == crate::ir::NodeKind::Service {
+                continue;
+            }
+            
+            // Assign service
+            for (dir, (svc_id, svc_name)) in &service_map {
+                if node.file_path.contains(dir) {
+                    node.service = svc_name.clone();
+                    if node.kind == crate::ir::NodeKind::File {
+                         graph.edges.push(crate::ir::Edge {
+                            from_node_id: svc_id.clone(),
+                            to_node_id: node.id.clone(),
+                            relation_type: crate::ir::RelationType::RootLink, // subtle link
+                        });
+                    }
+                    break;
+                }
+            }
+
             match node.kind {
-                NodeKind::File => {
+                crate::ir::NodeKind::File => {
                     final_nodes.push(node.clone());
                 }
-                NodeKind::Module => {
-                    // Directly wire the abstract module to physical file target if resolved
+                crate::ir::NodeKind::Module => {
                     if let Some(file_id) = file_index.get(&node.name) {
                         id_map.insert(node.id.clone(), file_id.clone());
                     } else {
