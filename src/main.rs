@@ -93,6 +93,7 @@ fn main() {
             if format == "sqlite" || format == "both" {
                 Storage::save_sqlite(&graph, out_path);
             }
+            Storage::save_html(out_path);
         }
     }
 }

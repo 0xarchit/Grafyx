@@ -82,4 +82,13 @@ impl Storage {
             }
         }
     }
+
+    pub fn save_html(output_dir: &Path) {
+        let file_path = output_dir.join("index.html");
+        let template = include_str!("template.html");
+        if let Ok(mut file) = File::create(file_path) {
+            use std::io::Write;
+            let _ = file.write_all(template.as_bytes());
+        }
+    }
 }
