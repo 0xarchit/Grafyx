@@ -25,4 +25,8 @@ pub enum Commands {
         #[arg(long)]
         output: String,
     },
+    #[command(alias = "i")]
+    Install,
+    #[command(alias = "u")]
+    Upgrade,
 }

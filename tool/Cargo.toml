@@ -19,6 +19,12 @@ tree-sitter-python = "0.21"
 tree-sitter-java = "0.21"
 tree-sitter-go = "0.21"
 tree-sitter-rust = "0.21"
+self_update = { version = "0.44", features = ["archive-tar", "archive-zip", "compression-flate2", "compression-zip-deflate"] }
+dialoguer = "0.12"
+home = "0.5"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.56"
 
 [profile.release]
 opt-level = 'z'
