@@ -3,673 +3,769 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>kgraph - Obsidian View</title>
-<script src="https://unpkg.com/force-graph"></script>
+<title>kgraph</title>
+<script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-body {
-    margin: 0;
-    overflow: hidden;
-    background-color: #0b0c10;
-    font-family: 'Inter', sans-serif;
-    color: #c5c6c7;
-}
-#graph {
-    width: 100vw;
-    height: 100vh;
-}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0f1117; font-family: 'Inter', sans-serif; color: #c9ccd1; }
+#graph-container { position: fixed; inset: 0; }
+#graph-container canvas { display: block; }
 
-/* Glassmorphism Panel Base */
-.ui-panel {
-    position: absolute;
-    background: rgba(11, 12, 16, 0.7);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(102, 252, 241, 0.15);
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-    z-index: 10;
-    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    max-height: calc(100vh - 80px);
+.panel {
+    position: fixed;
+    background: rgba(15,17,23,0.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px;
+    padding: 16px;
+    z-index: 20;
+    transition: opacity .2s;
+}
+.panel::-webkit-scrollbar { width: 4px; }
+.panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+
+#panel-left {
+    top: 16px; left: 16px;
+    width: 240px;
+    max-height: calc(100vh - 32px);
     overflow-y: auto;
 }
 
-.ui-panel::-webkit-scrollbar {
-    width: 6px;
-}
-.ui-panel::-webkit-scrollbar-thumb {
-    background: rgba(102, 252, 241, 0.3);
-    border-radius: 6px;
-}
-
-/* Left Controls */
-.left-panel {
-    top: 24px;
-    left: 24px;
-    width: 280px;
+#panel-right {
+    top: 16px; right: 16px;
+    width: 260px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
 }
 
-/* Right Navigation & Info */
-.right-panel {
-    top: 24px;
-    right: 24px;
-    width: 320px;
-}
-
-.ui-panel h1 {
-    margin: 0 0 8px 0;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #66fcf1;
-    letter-spacing: -0.03em;
-}
-
-.ui-panel h2 {
-    margin: 0 0 16px 0;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: #45a29e;
-    border-bottom: 1px solid rgba(102, 252, 241, 0.1);
-    padding-bottom: 6px;
-}
-
-.search-box {
-    margin-bottom: 20px;
-}
-.search-box input {
-    width: 100%;
-    padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    color: #fff;
-    font-size: 0.9rem;
-    outline: none;
-    transition: border 0.2s;
-    box-sizing: border-box;
-}
-.search-box input:focus {
-    border-color: #66fcf1;
-}
-
-.stat-box {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 8px;
-    margin-bottom: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-}
-.stat-box span:first-child {
-    font-size: 0.8rem;
-    color: #8c8f94;
-}
-.stat-box span:last-child {
+.plogo {
+    font-size: 1.1rem;
     font-weight: 600;
-    color: #fff;
-}
-
-.control-group {
-    margin-top: 20px;
-}
-.control-item {
-    margin-bottom: 16px;
-}
-.control-item label {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.75rem;
-    margin-bottom: 6px;
-    color: #a0a3a8;
-}
-.control-item input[type="range"] {
-    width: 100%;
-    cursor: pointer;
-    accent-color: #66fcf1;
-}
-.checkbox-item {
+    color: #eee;
+    letter-spacing: -0.02em;
+    margin-bottom: 12px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 0.8rem;
-    color: #c5c6c7;
-    cursor: pointer;
-    margin-bottom: 10px;
+    gap: 8px;
 }
-.checkbox-item input {
-    accent-color: #66fcf1;
+.plogo span { font-size: .7rem; color: #555; font-weight: 400; }
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+    margin-bottom: 4px;
+    font-size: 0.72rem;
+    color: #777;
+}
+.stat-row strong { color: #ccc; font-weight: 500; }
+
+.section-title {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: #444;
+    margin: 14px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
-#node-details {
-    padding: 16px;
-    background: rgba(31, 40, 51, 0.6);
-    border-radius: 8px;
-    border: 1px solid rgba(102, 252, 241, 0.2);
-    margin-top: 16px;
-    display: none;
+.ctrl-row {
+    margin-bottom: 10px;
 }
-#node-details h3 {
-    margin: 0 0 10px 0;
-    font-size: 1rem;
-    color: #fff;
-    word-break: break-all;
-}
-#node-details p {
-    margin: 4px 0;
-    font-size: 0.8rem;
-    color: #c5c6c7;
-}
-.tag {
-    display: inline-block;
-    padding: 2px 8px;
-    background: rgba(102, 252, 241, 0.15);
-    color: #66fcf1;
-    border-radius: 12px;
+.ctrl-label {
+    display: flex;
+    justify-content: space-between;
     font-size: 0.7rem;
-    text-transform: uppercase;
-    font-weight: 600;
+    color: #6a6e78;
+    margin-bottom: 4px;
 }
-.action-btn {
+.ctrl-label span:last-child { color: #aaa; }
+input[type="range"] {
     width: 100%;
-    padding: 10px;
-    margin-top: 10px;
-    background: rgba(102, 252, 241, 0.1);
-    color: #66fcf1;
-    border: 1px solid rgba(102, 252, 241, 0.3);
-    border-radius: 8px;
+    height: 2px;
+    cursor: pointer;
+    accent-color: #7c90db;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #7c90db;
+    border: 2px solid #0f1117;
+    cursor: pointer;
+}
+
+.chk-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.72rem;
+    color: #666;
+    cursor: pointer;
+    padding: 3px 0;
+    transition: color .15s;
+}
+.chk-row:hover { color: #999; }
+.chk-row input[type="checkbox"] {
+    width: 12px; height: 12px;
+    accent-color: #7c90db;
+    cursor: pointer;
+}
+
+.btn {
+    width: 100%;
+    padding: 7px 10px;
+    margin-top: 6px;
+    background: rgba(124,144,219,0.1);
+    color: #7c90db;
+    border: 1px solid rgba(124,144,219,0.2);
+    border-radius: 6px;
     cursor: pointer;
     font-family: inherit;
-    font-weight: 600;
-    transition: all 0.2s;
+    font-size: 0.72rem;
+    font-weight: 500;
+    transition: background .15s, border-color .15s;
+    text-align: center;
 }
-.action-btn:hover {
-    background: rgba(102, 252, 241, 0.2);
+.btn:hover { background: rgba(124,144,219,0.18); border-color: rgba(124,144,219,0.35); }
+.btn + .btn { margin-top: 4px; }
+
+.search-wrap { position: relative; margin-bottom: 10px; }
+.search-wrap input[type="text"] {
+    width: 100%;
+    padding: 7px 10px 7px 28px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    color: #ccc;
+    font-family: inherit;
+    font-size: 0.78rem;
+    outline: none;
+    transition: border-color .15s;
+}
+.search-wrap input:focus { border-color: rgba(124,144,219,0.5); }
+.search-wrap .search-icon {
+    position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+    font-size: .8rem; color: #444; pointer-events: none;
+}
+
+#node-info {
+    display: none;
+    margin-top: 12px;
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.02);
+}
+.info-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #e0e0e0;
+    word-break: break-all;
+    margin-bottom: 6px;
+}
+.info-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 0.62rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-right: 4px;
+    margin-bottom: 6px;
+}
+.info-row {
+    font-size: 0.68rem;
+    color: #555;
+    margin-bottom: 3px;
+    word-break: break-all;
+}
+.info-row strong { color: #777; }
+
+#legend { margin-top: 10px; }
+.legend-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.68rem; color: #555; margin-bottom: 5px;
+}
+.legend-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
 }
 </style>
 </head>
 <body>
 
-<div class="ui-panel left-panel">
-    <h1>kgraph</h1>
-    
-    <div class="stat-box">
-        <span>Nodes</span>
-        <span id="stat-nodes">0</span>
+<div id="graph-container"></div>
+
+<div id="panel-left" class="panel">
+    <div class="plogo">kgraph <span>code intelligence</span></div>
+
+    <div class="stat-row"><span>Nodes</span><strong id="st-nodes">0</strong></div>
+    <div class="stat-row"><span>Edges</span><strong id="st-edges">0</strong></div>
+    <div class="stat-row"><span>Services</span><strong id="st-services">0</strong></div>
+
+    <div class="section-title">Filters</div>
+    <label class="chk-row"><input type="checkbox" id="chk-files" checked> Files</label>
+    <label class="chk-row"><input type="checkbox" id="chk-funcs"> Functions</label>
+    <label class="chk-row"><input type="checkbox" id="chk-classes"> Classes</label>
+    <label class="chk-row"><input type="checkbox" id="chk-imports" checked> Imports</label>
+    <label class="chk-row"><input type="checkbox" id="chk-calls"> Calls</label>
+    <label class="chk-row"><input type="checkbox" id="chk-arrows"> Arrows</label>
+
+    <div class="section-title">Physics</div>
+
+    <div class="ctrl-row">
+        <div class="ctrl-label"><span>Repulsion</span><span id="v-charge">-80</span></div>
+        <input type="range" id="c-charge" min="-600" max="-5" value="-80">
     </div>
-    <div class="stat-box">
-        <span>Edges</span>
-        <span id="stat-edges">0</span>
+    <div class="ctrl-row">
+        <div class="ctrl-label"><span>Link Distance</span><span id="v-dist">60</span></div>
+        <input type="range" id="c-dist" min="5" max="400" value="60">
+    </div>
+    <div class="ctrl-row">
+        <div class="ctrl-label"><span>Gravity</span><span id="v-grav">0.08</span></div>
+        <input type="range" id="c-grav" min="0" max="1" step="0.01" value="0.08">
+    </div>
+    <div class="ctrl-row">
+        <div class="ctrl-label"><span>Damping</span><span id="v-damp">0.55</span></div>
+        <input type="range" id="c-damp" min="0.01" max="0.99" step="0.01" value="0.55">
     </div>
 
-    <button id="btn-replay" class="action-btn">Replay Extraction</button>
-
-    <div class="control-group">
-        <h2>Appearance Filters</h2>
-        <label class="checkbox-item"><input type="checkbox" id="chk-arrows"> Directional Arrows</label>
-        <label class="checkbox-item"><input type="checkbox" id="chk-funcs" checked> Show Functions</label>
-        <label class="checkbox-item"><input type="checkbox" id="chk-classes" checked> Show Classes</label>
-        <label class="checkbox-item"><input type="checkbox" id="chk-vars"> Show Variables</label>
-        <label class="checkbox-item"><input type="checkbox" id="chk-imports" checked> Show Imports</label>
-        <label class="checkbox-item"><input type="checkbox" id="chk-calls" checked> Show Calls</label>
-    </div>
-
-
-    <div class="control-group">
-        <h2>Physics Engine</h2>
-        <div class="control-item">
-            <label><span>Repel Charge</span> <span id="val-charge">-140</span></label>
-            <input type="range" id="ctrl-charge" min="-800" max="-10" value="-140">
-        </div>
-        <div class="control-item">
-            <label><span>Link Distance</span> <span id="val-distance">40</span></label>
-            <input type="range" id="ctrl-distance" min="10" max="300" value="40">
-        </div>
-        <div class="control-item">
-            <label><span>Center Gravity</span> <span id="val-gravity">0.05</span></label>
-            <input type="range" id="ctrl-gravity" min="0" max="1" step="0.01" value="0.05">
-        </div>
-        <div class="control-item">
-            <label><span>Damping (Decay)</span> <span id="val-damping">0.4</span></label>
-            <input type="range" id="ctrl-damping" min="0" max="1" step="0.01" value="0.4">
-        </div>
-        <div class="control-item">
-            <label><span>Simulation Speed</span> <span id="val-speed">0.05</span></label>
-            <input type="range" id="ctrl-speed" min="0.001" max="0.1" step="0.001" value="0.05">
-        </div>
-        <button id="btn-resimulate" class="action-btn">Resimulate Layout</button>
-
-    </div>
+    <button class="btn" id="btn-resim">↺ Resimulate</button>
+    <button class="btn" id="btn-replay">▶ Replay</button>
 </div>
 
-<div class="ui-panel right-panel">
-    <h2>Search Engine</h2>
-    <div class="search-box">
-        <input type="text" id="search-input" list="node-datalist" placeholder="Search files, functions, modules...">
-        <datalist id="node-datalist"></datalist>
+<div id="panel-right" class="panel">
+    <div class="section-title">Search</div>
+    <div class="search-wrap">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="search-in" list="search-list" placeholder="file, function, module…">
+        <datalist id="search-list"></datalist>
     </div>
 
-    <div id="node-details">
-        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-            <span class="tag" id="det-kind">File</span>
-            <span class="tag" id="det-lang" style="color:#dea584; background:rgba(222, 165, 132, 0.15)">Rust</span>
-            <span class="tag" id="det-service" style="color:#f1e05a; background:rgba(241, 224, 90, 0.15)">Service</span>
+    <div id="node-info">
+        <div class="info-name" id="ni-name"></div>
+        <div>
+            <span class="info-badge" id="ni-kind"></span>
+            <span class="info-badge" id="ni-lang"></span>
+            <span class="info-badge" id="ni-svc"></span>
         </div>
-        <h3 id="det-name">src/main.rs</h3>
-        <p><strong>Path:</strong> <span id="det-path"></span></p>
-        <p><strong>Connections:</strong> <span id="det-conns"></span> edges</p>
+        <div class="info-row"><strong>Path:</strong> <span id="ni-path"></span></div>
+        <div class="info-row"><strong>Connections:</strong> <span id="ni-conns"></span></div>
+    </div>
+
+    <div id="legend">
+        <div class="section-title">Legend</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#fff;opacity:.9"></div> Root</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#7c90db"></div> Service</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#dea584"></div> Rust</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f1e05a"></div> JavaScript</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#3178c6"></div> TypeScript</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#3572A5"></div> Python</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#00ADD8"></div> Go</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#b07219"></div> Java</div>
     </div>
 </div>
-
-<div id="graph"></div>
 
 <script>
-const rawData = {{GRAPH_DATA_PLACEHOLDER}};
+const RAW = {{GRAPH_DATA_PLACEHOLDER}};
+
+const COLORS = {
+    root:       '#ffffff',
+    service:    '#7c90db',
+    rust:       '#dea584',
+    javascript: '#f1e05a',
+    typescript: '#3178c6',
+    python:     '#3572A5',
+    go:         '#00ADD8',
+    java:       '#b07219',
+    default:    '#8890a0'
+};
+
+const EDGE_COLORS = {
+    RootLink:    'rgba(255,255,255,0.06)',
+    ServiceCall: 'rgba(255,140,100,0.55)',
+    Imports:     'rgba(180,220,160,0.35)',
+    Calls:       'rgba(120,150,220,0.25)',
+    default:     'rgba(180,180,180,0.18)'
+};
 
 let state = {
-    charge: -140,
-    distance: 40,
-    gravity: 0.05,
-    damping: 0.4,
-    speed: 0.05,
-    
-    showFuncs: true,
-    showClasses: true,
-    showVars: false,
+    charge: -80,
+    dist: 60,
+    grav: 0.08,
+    damp: 0.55,
+
+    showFiles: true,
+    showFuncs: false,
+    showClasses: false,
     showImports: true,
-    showCalls: true,
+    showCalls: false,
     arrows: false,
-    
-    scale: 1.0,
-    lodThreshold: 0.8,
-    
-    hoverNode: null,
-    focusedNode: null,
-    isReplaying: false
+
+    zoom: 1,
+    hover: null,
+    focus: null,
+    replaying: false
 };
 
+const adjMap = new Map();
+RAW.edges.forEach(e => {
+    const a = edgeId(e, 'from'), b = edgeId(e, 'to');
+    if (!adjMap.has(a)) adjMap.set(a, new Set());
+    if (!adjMap.has(b)) adjMap.set(b, new Set());
+    adjMap.get(a).add(b);
+    adjMap.get(b).add(a);
+});
+function edgeId(e, side) {
+    const v = side === 'from' ? e.from_node_id : e.to_node_id;
+    return typeof v === 'object' ? v.id : v;
+}
+function neighbors(id) { return adjMap.get(id) || new Set(); }
 
-const serviceMap = {};
-rawData.nodes.forEach(n => {
-    let p = n.file_path.replace(/\\/g, '/');
-    let parts = p.split('/');
-    let service = parts.length > 1 ? parts[1] : 'root';
-    n.service = service;
-    serviceMap[service] = (serviceMap[service] || 0) + 1;
+const serviceSet = new Set();
+RAW.nodes.forEach(n => { if (n.kind === 'Service') serviceSet.add(n.service); });
+document.getElementById('st-services').innerText = serviceSet.size;
+
+const datalist = document.getElementById('search-list');
+RAW.nodes.forEach(n => {
+    const o = document.createElement('option');
+    o.value = n.name;
+    datalist.appendChild(o);
 });
 
-const datalist = document.getElementById('node-datalist');
-rawData.nodes.forEach(n => {
-    let option = document.createElement('option');
-    option.value = n.name;
-    datalist.appendChild(option);
-});
-
-// Controls
-['charge', 'distance', 'gravity', 'damping', 'speed'].forEach(id => {
-    const el = document.getElementById('ctrl-' + id);
-    if (!el) return;
-    el.addEventListener('input', e => {
-        let v = parseFloat(e.target.value);
-        state[id] = v;
-        document.getElementById('val-' + id).innerText = v;
-        state.isReplaying = false;
-        updatePhysics();
-    });
-});
-
-const chkMap = { 
-    'chk-funcs': 'showFuncs', 
-    'chk-classes': 'showClasses', 
-    'chk-vars': 'showVars',
-    'chk-imports': 'showImports', 
-    'chk-calls': 'showCalls', 
-    'chk-arrows': 'arrows' 
-};
-
-Object.keys(chkMap).forEach(id => {
-    document.getElementById(id).addEventListener('change', e => {
-        state[chkMap[id]] = e.target.checked;
-        state.isReplaying = false;
-        refreshData();
-    });
-});
-
-const linkRelations = new Map();
-rawData.edges.forEach(edge => {
-    let a = typeof edge.from_node_id === 'object' ? edge.from_node_id.id : edge.from_node_id;
-    let b = typeof edge.to_node_id === 'object' ? edge.to_node_id.id : edge.to_node_id;
-    if (!linkRelations.has(a)) linkRelations.set(a, new Set());
-    if (!linkRelations.has(b)) linkRelations.set(b, new Set());
-    linkRelations.get(a).add(b);
-    linkRelations.get(b).add(a);
-});
-
-function getNeighbors(nodeId) {
-    return linkRelations.get(nodeId) || new Set();
+function nodeColor(n) {
+    if (n.kind === 'Root')    return COLORS.root;
+    if (n.kind === 'Service') return COLORS.service;
+    return COLORS[n.language] || COLORS.default;
 }
 
-function computeData() {
-    const zoomLevel = state.scale;
-    
-    let nodes = rawData.nodes.filter(n => {
-        if (n.kind === 'Root' || n.kind === 'Service') return true;
-        
-        // LOD Filtering
-        if (zoomLevel < 0.2) return n.kind === 'File' || n.kind === 'Module';
-        if (zoomLevel < 0.5) return n.kind !== 'Function' && n.kind !== 'Variable';
+function nodeRadius(n, zoom) {
+    let base;
+    switch(n.kind) {
+        case 'Root':     base = 8; break;
+        case 'Service':  base = 6; break;
+        case 'File':
+        case 'Module':   base = 4; break;
+        default:         base = 2.5; break;
+    }
+    return base;
+}
 
-        if (!state.showFuncs && n.kind === 'Function') return false;
-        if (!state.showClasses && n.kind === 'Class') return false;
-        if (!state.showVars && n.kind === 'Variable') return false;
-        
+function isVisible(n) {
+    if (n.kind === 'Root' || n.kind === 'Service') return true;
+    const z = state.zoom;
+
+    if (n.kind === 'File' || n.kind === 'Module') {
+        if (!state.showFiles && n.kind === 'File') return false;
+        if (z < 0.1) return false;
         return true;
-    });
-    
-    let nset = new Set(nodes.map(n => n.id));
-    
-    let edges = rawData.edges.filter(e => {
-        let a = typeof e.from_node_id === 'object' ? e.from_node_id.id : e.from_node_id;
-        let b = typeof e.to_node_id === 'object' ? e.to_node_id.id : e.to_node_id;
-        
-        if (!nset.has(a) || !nset.has(b)) return false;
+    }
+    if (n.kind === 'Function') {
+        if (!state.showFuncs) return false;
+        if (z < 0.5) return false;
+        return true;
+    }
+    if (n.kind === 'Class') {
+        if (!state.showClasses) return false;
+        if (z < 0.3) return false;
+        return true;
+    }
+    return false;
+}
+
+function computeGraph() {
+    const visNodes = RAW.nodes.filter(isVisible);
+    const visSet = new Set(visNodes.map(n => n.id));
+
+    const visEdges = RAW.edges.filter(e => {
+        const a = edgeId(e, 'from'), b = edgeId(e, 'to');
+        if (!visSet.has(a) || !visSet.has(b)) return false;
         if (!state.showImports && e.relation_type === 'Imports') return false;
         if (!state.showCalls && e.relation_type === 'Calls') return false;
-        
         return true;
     }).map(e => {
-        let w = 1.0;
-        if (e.relation_type === 'RootLink') w = 5.0;
-        else if (e.relation_type === 'ServiceCall') w = 3.0;
-        else if (e.relation_type === 'Imports') w = 2.0;
-        else if (e.relation_type === 'Calls') w = 1.0;
-        else w = 0.5;
-        return {...e, weight: w};
+        const w = { RootLink: 6, ServiceCall: 4, Imports: 2.5, Calls: 1.5 }[e.relation_type] || 1;
+        return { ...e, _w: w };
     });
 
-    return { nodes, edges };
+    return { nodes: visNodes, edges: visEdges };
 }
 
+const GraphEl = document.getElementById('graph-container');
 
-const colors = {
-    'rust': '#dea584', 'javascript': '#f1e05a', 'typescript': '#3178c6',
-    'python': '#3572A5', 'go': '#00ADD8', 'java': '#b07219'
-};
-
-const dt = computeData();
-document.getElementById('stat-nodes').innerText = dt.nodes.length;
-document.getElementById('stat-edges').innerText = dt.edges.length;
-
-let gData = { nodes: [], links: [] };
-
-const Graph = ForceGraph()(document.getElementById('graph'))
-    .graphData(gData)
-    .nodeRelSize(5)
+const Graph = ForceGraph()(GraphEl)
+    .backgroundColor('#0f1117')
+    .graphData({ nodes: [], links: [] })
     .nodeId('id')
-    .nodeColor(n => {
-        if (n.kind === 'Root') return '#fff';
-        if (n.kind === 'Service') return '#66fcf1';
-        return colors[n.language] || '#c5c6c7';
+    .nodeRelSize(1)
+    .nodeVal(n => {
+        if (n.kind === 'Root') return 64;
+        if (n.kind === 'Service') return 36;
+        if (n.kind === 'File' || n.kind === 'Module') return 16;
+        return 6;
     })
+    .nodeColor(nodeColor)
+    .nodeLabel(() => '')
+    .linkSource(e => edgeId(e, 'from'))
+    .linkTarget(e => edgeId(e, 'to'))
     .linkColor(e => {
-        if (e.relation_type === 'RootLink') return 'rgba(102, 252, 241, 0.15)'; // Subtle
-        if (e.relation_type === 'ServiceCall') return 'rgba(255, 107, 107, 0.8)'; // Bold Red
-        if (e.relation_type === 'Imports') return 'rgba(74, 222, 128, 0.6)'; // Green
-        return 'rgba(102, 252, 241, 0.4)'; // Teal
+        if (!state.focus && !state.hover) return EDGE_COLORS[e.relation_type] || EDGE_COLORS.default;
+        const active = state.focus || state.hover;
+        const a = edgeId(e, 'from'), b = edgeId(e, 'to');
+        if (a === active.id || b === active.id) return EDGE_COLORS[e.relation_type] || EDGE_COLORS.default;
+        return 'rgba(80,80,80,0.06)';
     })
     .linkWidth(e => {
-        let base = 1.0;
-        if (e.relation_type === 'CallsService') base = 4.0;
-        else if (e.relation_type === 'Imports') base = 2.0;
-        
-        if (!state.focusedNode && !state.hoverNode) return base;
-        
-        let active = state.focusedNode || state.hoverNode;
-        let a = e.source.id || e.source; let b = e.target.id || e.target;
-        if (active.id === a || active.id === b) return base + 2;
-        return Math.max(0.2, base * 0.5);
+        const base = e.relation_type === 'RootLink' ? 0.5 :
+                     e.relation_type === 'ServiceCall' ? 1.5 :
+                     e.relation_type === 'Imports' ? 0.8 : 0.5;
+        if (!state.focus && !state.hover) return base;
+        const active = state.focus || state.hover;
+        const a = edgeId(e, 'from'), b = edgeId(e, 'to');
+        return (a === active.id || b === active.id) ? base + 0.8 : base * 0.3;
     })
-    .linkLineDash(e => e.relation_type === 'Calls' ? [3, 2] : null)
-    .linkDirectionalArrowLength(e => state.arrows ? 3.5 : 0)
+    .linkLineDash(e => e.relation_type === 'Calls' ? [2, 2] : null)
+    .linkDirectionalArrowLength(e => state.arrows && e.relation_type !== 'RootLink' ? 3 : 0)
     .linkDirectionalArrowRelPos(1)
-    .nodeCanvasObject((node, ctx, globalScale) => {
-        let alpha = 1.0;
-        if (state.focusedNode) {
-            let active = state.focusedNode;
-            let neighbors = getNeighbors(active.id);
-            if (node.id !== active.id && !neighbors.has(node.id)) {
-                alpha = 0.15;
-            }
-        }
-
-        ctx.globalAlpha = alpha;
-        
-        const label = node.name;
-        let size = 4;
-        if (node.kind === 'Root') size = 12;
-        else if (node.kind === 'Service') size = 10;
-        else if (node.kind === 'File' || node.kind === 'Module') size = 7;
-
-        node.val = size;
-
-        const fontSize = (size + 4) / globalScale;
-        ctx.font = `600 ${fontSize}px Inter, sans-serif`;
-        
-        ctx.fillStyle = (node.kind === 'Root' ? '#66fcf1' : (colors[node.language] || '#c5c6c7'));
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, size, 0, 2 * Math.PI, false);
-        ctx.fill();
-        
-        if (state.hoverNode && state.hoverNode.id === node.id) {
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-        }
-
-        if (globalScale > 0.4 || node.kind === 'Root' || node.kind === 'Service') {
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
-            ctx.fillText(label, node.x, node.y + size + fontSize + 2);
-        }
-        ctx.globalAlpha = 1.0; 
+    .enableNodeDrag(true)
+    .onNodeDrag(() => {
+        Graph.d3Alpha(0.5);
     })
-    .onNodeHover(node => {
-        document.getElementById('graph').style.cursor = node ? 'pointer' : null;
-        state.hoverNode = node;
+    .onNodeDragEnd(n => {
+        n.fx = n.x; n.fy = n.y;
+        setTimeout(() => { n.fx = null; n.fy = null; }, 800);
     })
-    .onNodeClick(node => {
-        if (state.focusedNode && state.focusedNode.id === node.id) {
-            state.focusedNode = null; 
-            document.getElementById('node-details').style.display = 'none';
+    .onNodeHover(n => {
+        GraphEl.style.cursor = n ? 'pointer' : 'default';
+        state.hover = n;
+    })
+    .onNodeClick(n => {
+        if (state.focus && state.focus.id === n.id) {
+            state.focus = null;
+            document.getElementById('node-info').style.display = 'none';
         } else {
-            state.focusedNode = node;
-            Graph.centerAt(node.x, node.y, 1000);
-            Graph.zoom(4, 2000);
-            
-            const det = document.getElementById('node-details');
-            document.getElementById('det-kind').innerText = node.kind;
-            document.getElementById('det-lang').innerText = node.language;
-            document.getElementById('det-service').innerText = node.service;
-            document.getElementById('det-name').innerText = node.name;
-            document.getElementById('det-path').innerText = node.file_path;
-            document.getElementById('det-conns').innerText = getNeighbors(node.id).size;
-            det.style.display = 'block';
+            state.focus = n;
+            Graph.centerAt(n.x, n.y, 600).zoom(Math.max(state.zoom, 3), 600);
+            showInfo(n);
         }
     })
     .onBackgroundClick(() => {
-        state.focusedNode = null;
-        document.getElementById('node-details').style.display = 'none';
+        state.focus = null;
+        document.getElementById('node-info').style.display = 'none';
     })
-    .onZoom(e => {
-        state.scale = e.k;
-        if (!state.isReplaying) refreshData();
+    .onZoom(ev => {
+        state.zoom = ev.k;
+        if (!state.replaying) softRefresh();
+    })
+    .nodeCanvasObjectMode(() => 'after')
+    .nodeCanvasObject((n, ctx, gScale) => {
+        const z = gScale;
+        const r = nodeRadius(n, z);
+
+        let alpha = 1;
+        if (state.focus) {
+            const nb = neighbors(state.focus.id);
+            alpha = (n.id === state.focus.id || nb.has(n.id)) ? 1 : 0.08;
+        }
+
+        ctx.globalAlpha = alpha;
+
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+        ctx.fillStyle = nodeColor(n);
+        ctx.fill();
+
+        if (state.hover && state.hover.id === n.id) {
+            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+            ctx.lineWidth = 1.2 / z;
+            ctx.stroke();
+        }
+        if (state.focus && state.focus.id === n.id) {
+            ctx.strokeStyle = 'rgba(124,144,219,0.9)';
+            ctx.lineWidth = 1.5 / z;
+            ctx.stroke();
+        }
+
+        const showLabel = n.kind === 'Root' ||
+                          n.kind === 'Service' ||
+                          (z > 0.3 && (n.kind === 'File' || n.kind === 'Module')) ||
+                          (z > 1.2 && n.kind === 'Function') ||
+                          (state.hover && state.hover.id === n.id) ||
+                          (state.focus && state.focus.id === n.id);
+
+        if (showLabel) {
+            const fs = Math.min(Math.max(10 / z, 2), 16);
+            ctx.font = `${n.kind === 'Root' || n.kind === 'Service' ? 600 : 400} ${fs}px Inter, sans-serif`;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = `rgba(200,202,210,${alpha * 0.85})`;
+            ctx.fillText(n.name, n.x + r + 3 / z, n.y);
+        }
+
+        ctx.globalAlpha = 1;
     });
 
-// Install initial custom forces missing on default
-Graph.d3Force('x', d3.forceX().strength(state.gravity));
-Graph.d3Force('y', d3.forceY().strength(state.gravity));
+// Forces
+Graph.d3Force('x', null);
+Graph.d3Force('y', null);
 
-updatePhysics();
+function applyForces() {
+    const sim = Graph.d3Force;
 
-function refreshData(replot = false) {
-    if (state.isReplaying) return;
-    const updated = computeData();
-    document.getElementById('stat-nodes').innerText = updated.nodes.length;
-    document.getElementById('stat-edges').innerText = updated.edges.length;
-    
-    let existMap = new Map();
-    if (!replot) {
-        Graph.graphData().nodes.forEach(n => existMap.set(n.id, n));
+    const charge = sim('charge');
+    if (charge) charge.strength(state.charge).distanceMax(500);
+
+    const link = sim('link');
+    if (link) {
+        link.distance(e => {
+            const baseD = state.dist;
+            return baseD / (e._w || 1);
+        }).strength(e => {
+            if (e.relation_type === 'RootLink') return 0.8;
+            if (e.relation_type === 'ServiceCall') return 0.5;
+            return 0.3;
+        }).iterations(3);
     }
 
-    let g = {
-        nodes: updated.nodes.map((n, i) => {
-            let exist = existMap.get(n.id);
-            let payload = {...n};
-            
-            if (exist) {
-                payload.x = exist.x; payload.y = exist.y; payload.vx = exist.vx; payload.vy = exist.vy;
-            } else if (replot || !exist) {
-                // Circular positioning
-                const angle = (i / updated.nodes.length) * 2 * Math.PI;
-                const radius = node => {
-                    if (node.kind === 'Root') return 0;
-                    if (node.kind === 'Service') return 200;
-                    return 400 + Math.random() * 200;
-                };
-                payload.x = radius(n) * Math.cos(angle);
-                payload.y = radius(n) * Math.sin(angle);
+    sim('x', d3.forceX(0).strength(state.grav));
+    sim('y', d3.forceY(0).strength(state.grav));
+
+    sim('collide', d3.forceCollide().radius(n => {
+        if (n.kind === 'Root') return 20;
+        if (n.kind === 'Service') return 14;
+        if (n.kind === 'File' || n.kind === 'Module') return 8;
+        return 4;
+    }).strength(0.6).iterations(2));
+
+    Graph.d3VelocityDecay(state.damp);
+    Graph.d3AlphaDecay(0.015);
+    Graph.d3Alpha(1).d3ReheatSimulation();
+}
+
+function buildGraphData(replot = false) {
+    const { nodes, edges } = computeGraph();
+    document.getElementById('st-nodes').innerText = nodes.length;
+    document.getElementById('st-edges').innerText = edges.length;
+
+    const prevMap = new Map();
+    if (!replot) {
+        Graph.graphData().nodes.forEach(pn => prevMap.set(pn.id, pn));
+    }
+
+    const serviceList = nodes.filter(n => n.kind === 'Service');
+    const nSvc = serviceList.length;
+    const serviceAngle = {};
+    serviceList.forEach((s, i) => {
+        serviceAngle[s.service] = (i / nSvc) * 2 * Math.PI;
+    });
+
+    const gNodes = nodes.map((n, i) => {
+        const prev = prevMap.get(n.id);
+        const out = { ...n };
+        if (prev) {
+            out.x = prev.x; out.y = prev.y;
+            out.vx = prev.vx; out.vy = prev.vy;
+        } else {
+            if (n.kind === 'Root') {
+                out.x = 0; out.y = 0;
+            } else if (n.kind === 'Service') {
+                const a = serviceAngle[n.service] || 0;
+                const r = Math.max(200, nSvc * 35);
+                out.x = r * Math.cos(a);
+                out.y = r * Math.sin(a);
+            } else {
+                const sA = serviceAngle[n.service] !== undefined ? serviceAngle[n.service] : (i / nodes.length) * 2 * Math.PI;
+                const jitter = (Math.random() - 0.5) * 1.2;
+                const dist = 280 + Math.random() * 240;
+                out.x = dist * Math.cos(sA + jitter);
+                out.y = dist * Math.sin(sA + jitter);
             }
-            return payload;
-        }),
-        links: updated.edges.map(e => {
-            let a = typeof e.from_node_id === 'object' ? e.from_node_id.id : e.from_node_id;
-            let b = typeof e.to_node_id === 'object' ? e.to_node_id.id : e.to_node_id;
-            return { source: a, target: b, relation_type: e.relation_type, weight: e.weight };
-        })
-    };
-    Graph.graphData(g);
-    if (replot) updatePhysics();
+        }
+        return out;
+    });
+
+    const gLinks = edges.map(e => ({
+        source: edgeId(e, 'from'),
+        target: edgeId(e, 'to'),
+        relation_type: e.relation_type,
+        _w: e._w
+    }));
+
+    Graph.graphData({ nodes: gNodes, links: gLinks });
+    applyForces();
 }
 
-function updatePhysics() {
-    let charge = Graph.d3Force('charge');
-    if (charge) charge.strength(state.charge);
-    
-    let link = Graph.d3Force('link');
-    if (link) link.distance(linkNode => state.distance / (linkNode.weight || 1));
-    
-    let fx = Graph.d3Force('x');
-    if (fx) fx.strength(state.gravity);
-    
-    let fy = Graph.d3Force('y');
-    if (fy) fy.strength(state.gravity);
-         
-    Graph.d3VelocityDecay(state.damping);
-    Graph.d3AlphaDecay(state.speed);
-    Graph.d3ReheatSimulation();
+function softRefresh() {
+    if (state.replaying) return;
+    const { nodes, edges } = computeGraph();
+    document.getElementById('st-nodes').innerText = nodes.length;
+    document.getElementById('st-edges').innerText = edges.length;
+
+    const cur = Graph.graphData();
+    const curMap = new Map(cur.nodes.map(n => [n.id, n]));
+    const curLinkMap = new Map(cur.links.map(l => [`${l.source.id || l.source}|${l.target.id || l.target}|${l.relation_type}`, l]));
+
+    const newNodes = nodes.map(n => {
+        const ex = curMap.get(n.id);
+        return ex ? ex : { ...n, x: (Math.random() - 0.5) * 600, y: (Math.random() - 0.5) * 600 };
+    });
+
+    const newLinks = edges.map(e => ({
+        source: edgeId(e, 'from'),
+        target: edgeId(e, 'to'),
+        relation_type: e.relation_type,
+        _w: e._w
+    }));
+
+    Graph.graphData({ nodes: newNodes, links: newLinks });
 }
-
-document.getElementById('btn-resimulate').addEventListener('click', () => {
-    refreshData(true);
-});
-
 
 function playReplay() {
-    if (state.isReplaying) return;
-    state.isReplaying = true;
-    
-    let src = computeData();
-    let nIdx = 0;
-    
-    let currentNodes = [];
-    let currentLinks = [];
-    let activeSet = new Set();
+    if (state.replaying) return;
+    state.replaying = true;
 
-    let rootNodes = src.nodes.filter(n => n.kind === 'File');
-    let subNodes = src.nodes.filter(n => n.kind !== 'File');
-    let orderedNodes = [...rootNodes, ...subNodes];
+    const { nodes, edges } = computeGraph();
+    const roots = nodes.filter(n => n.kind === 'Root');
+    const svcs  = nodes.filter(n => n.kind === 'Service');
+    const files = nodes.filter(n => n.kind === 'File' || n.kind === 'Module');
+    const rest  = nodes.filter(n => !['Root','Service','File','Module'].includes(n.kind));
+    const ordered = [...roots, ...svcs, ...files, ...rest];
 
-    let g = { nodes: [], links: [] };
-    Graph.graphData(g);
+    const serviceList = svcs;
+    const nSvc = serviceList.length;
+    const serviceAngle = {};
+    serviceList.forEach((s, i) => {
+        serviceAngle[s.service] = (i / nSvc) * 2 * Math.PI;
+    });
 
-    let interval = setInterval(() => {
-        if (!state.isReplaying) {
-            clearInterval(interval);
-            refreshData();
-            return;
+    function initPos(n, i) {
+        if (n.kind === 'Root') return { x: 0, y: 0 };
+        if (n.kind === 'Service') {
+            const a = serviceAngle[n.service] || 0;
+            const r = Math.max(200, nSvc * 35);
+            return { x: r * Math.cos(a), y: r * Math.sin(a) };
         }
+        const sA = serviceAngle[n.service] !== undefined ? serviceAngle[n.service] : (i / ordered.length) * 2 * Math.PI;
+        const d = 280 + Math.random() * 240;
+        return { x: d * Math.cos(sA + (Math.random()-0.5)*1.2), y: d * Math.sin(sA + (Math.random()-0.5)*1.2) };
+    }
 
-        let nAdded = 0;
-        while (nAdded < 5 && nIdx < orderedNodes.length) {
-            let n = orderedNodes[nIdx++];
-            currentNodes.push({...n, val: n.kind === 'File' ? 8 : 4});
+    let idx = 0;
+    const curNodes = [];
+    const activeSet = new Set();
+    Graph.graphData({ nodes: [], links: [] });
+
+    const tick = setInterval(() => {
+        if (!state.replaying) { clearInterval(tick); buildGraphData(false); return; }
+        const isStruct = idx < (roots.length + svcs.length);
+        const batch = isStruct ? 1 : Math.min(12, Math.ceil(ordered.length / 60));
+
+        let added = 0;
+        while (added < batch && idx < ordered.length) {
+            const n = ordered[idx];
+            const pos = initPos(n, idx);
+            curNodes.push({ ...n, ...pos });
             activeSet.add(n.id);
-            nAdded++;
+            idx++; added++;
         }
-        
-        currentLinks = src.edges.filter(e => {
-            let a = typeof e.from_node_id === 'object' ? e.from_node_id.id : e.from_node_id;
-            let b = typeof e.to_node_id === 'object' ? e.to_node_id.id : e.to_node_id;
-            return activeSet.has(a) && activeSet.has(b);
-        }).map(e => {
-            let a = typeof e.from_node_id === 'object' ? e.from_node_id.id : e.from_node_id;
-            let b = typeof e.to_node_id === 'object' ? e.to_node_id.id : e.to_node_id;
-            return { source: a, target: b, relation_type: e.relation_type, weight: e.weight };
-        });
 
-        Graph.graphData({ nodes: [...currentNodes], links: [...currentLinks] });
-        
-        document.getElementById('stat-nodes').innerText = currentNodes.length;
-        document.getElementById('stat-edges').innerText = currentLinks.length;
+        const curLinks = edges
+            .filter(e => activeSet.has(edgeId(e,'from')) && activeSet.has(edgeId(e,'to')))
+            .map(e => ({ source: edgeId(e,'from'), target: edgeId(e,'to'), relation_type: e.relation_type, _w: e._w }));
 
-        if (nIdx >= orderedNodes.length) {
-            clearInterval(interval);
-            state.isReplaying = false;
+        Graph.graphData({ nodes: [...curNodes], links: curLinks });
+        document.getElementById('st-nodes').innerText = curNodes.length;
+        document.getElementById('st-edges').innerText = curLinks.length;
+
+        if (idx === 1) applyForces();
+
+        if (idx >= ordered.length) {
+            clearInterval(tick);
+            state.replaying = false;
         }
-    }, 60);
+    }, 50);
 }
 
+function showInfo(n) {
+    const info = document.getElementById('node-info');
+    document.getElementById('ni-name').innerText = n.name;
+    document.getElementById('ni-kind').innerText = n.kind;
+    document.getElementById('ni-kind').style.cssText = `background:rgba(124,144,219,0.15);color:#7c90db`;
+    document.getElementById('ni-lang').innerText = n.language || '';
+    document.getElementById('ni-lang').style.cssText = `background:rgba(200,200,200,0.08);color:#888`;
+    document.getElementById('ni-svc').innerText = n.service || '';
+    document.getElementById('ni-svc').style.cssText = `background:rgba(200,200,200,0.06);color:#666`;
+    document.getElementById('ni-path').innerText = n.file_path || '';
+    document.getElementById('ni-conns').innerText = neighbors(n.id).size;
+    info.style.display = 'block';
+}
+
+// Control bindings
+[
+    ['c-charge','v-charge','charge'],
+    ['c-dist','v-dist','dist'],
+    ['c-grav','v-grav','grav'],
+    ['c-damp','v-damp','damp']
+].forEach(([elId, valId, key]) => {
+    const el = document.getElementById(elId);
+    el.addEventListener('input', e => {
+        const v = parseFloat(e.target.value);
+        state[key] = v;
+        document.getElementById(valId).innerText = v;
+        applyForces();
+    });
+});
+
+const chkMap = {
+    'chk-files':   'showFiles',
+    'chk-funcs':   'showFuncs',
+    'chk-classes': 'showClasses',
+    'chk-imports': 'showImports',
+    'chk-calls':   'showCalls',
+    'chk-arrows':  'arrows'
+};
+Object.entries(chkMap).forEach(([id, key]) => {
+    document.getElementById(id).addEventListener('change', e => {
+        state[key] = e.target.checked;
+        if (state.replaying) return;
+        softRefresh();
+    });
+});
+
+document.getElementById('btn-resim').addEventListener('click', () => {
+    buildGraphData(true);
+});
+
 document.getElementById('btn-replay').addEventListener('click', () => {
-    playReplay();
+    state.replaying = false;
+    setTimeout(playReplay, 80);
 });
 
-document.getElementById('search-input').addEventListener('change', e => {
-    let q = e.target.value.toLowerCase();
-    let target = rawData.nodes.find(n => n.name.toLowerCase() === q);
+document.getElementById('search-in').addEventListener('change', e => {
+    const q = e.target.value.toLowerCase().trim();
+    const target = RAW.nodes.find(n => n.name.toLowerCase() === q);
     if (!target) return;
-    
-    if ((target.kind !== 'File' && target.kind !== 'Module') && !state.showFuncs) {
-        state.showFuncs = true;
-        document.getElementById('chk-funcs').checked = true;
-        refreshData();
+    const gn = Graph.graphData().nodes.find(n => n.id === target.id);
+    if (gn) {
+        state.focus = gn;
+        Graph.centerAt(gn.x, gn.y, 800).zoom(Math.max(state.zoom, 4), 800);
+        showInfo(gn);
     }
-    
-    state.focusedNode = target;
-    setTimeout(() => {
-        let activeGraphNode = Graph.graphData().nodes.find(n => n.id === target.id);
-        if (activeGraphNode) {
-            Graph.centerAt(activeGraphNode.x, activeGraphNode.y, 1000);
-            Graph.zoom(6, 2000);
-            
-            const det = document.getElementById('node-details');
-            document.getElementById('det-kind').innerText = activeGraphNode.kind;
-            document.getElementById('det-lang').innerText = activeGraphNode.language;
-            document.getElementById('det-service').innerText = activeGraphNode.service;
-            document.getElementById('det-name').innerText = activeGraphNode.name;
-            document.getElementById('det-path').innerText = activeGraphNode.file_path;
-            document.getElementById('det-conns').innerText = getNeighbors(activeGraphNode.id).size;
-            det.style.display = 'block';
-        }
-    }, state.showFuncs ? 0 : 500);
 });
 
-// Auto-start
-setTimeout(() => playReplay(), 200);
-
+setTimeout(playReplay, 150);
 </script>
 </body>
 </html>

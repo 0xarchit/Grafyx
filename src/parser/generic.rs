@@ -17,7 +17,76 @@ impl GenericParser {
             lang_name,
         }
     }
+
+    fn clean_node_name(&self, text: &str) -> String {
+        let text = text.trim();
+        if text.is_empty() { return "".to_string(); }
+
+        match self.lang_name {
+            "python" => {
+                // Strip "import ", "from ", " as ..."
+                let clean = text.replace("import ", "")
+                    .replace("from ", "")
+                    .split(" as ")
+                    .next()
+                    .unwrap_or(text)
+                    .trim()
+                    .to_string();
+                
+                // If it contains " import ", it's a "from x import y"
+                if clean.contains(" import ") {
+                    let parts: Vec<&str> = clean.split(" import ").collect();
+                    if parts.len() > 1 {
+                        return format!("{}.{}", parts[0].trim(), parts[1].trim());
+                    }
+                }
+                clean
+            }
+            "javascript" | "typescript" => {
+                // Handle "import ... from 'path'"
+                if text.contains(" from ") {
+                    if let Some(path_start) = text.find('\'').or_else(|| text.find('\"')) {
+                        let path = &text[path_start + 1..];
+                        if let Some(path_end) = path.find('\'').or_else(|| path.find('\"')) {
+                            let mod_path = &path[..path_end];
+                            return mod_path.split('/').last().unwrap_or(mod_path).to_string();
+                        }
+                    }
+                }
+                // Handle require('path')
+                if text.contains("require(") {
+                    if let Some(path_start) = text.find('\'').or_else(|| text.find('\"')) {
+                        let path = &text[path_start + 1..];
+                        if let Some(path_end) = path.find('\'').or_else(|| path.find('\"')) {
+                            let mod_path = &path[..path_end];
+                            return mod_path.split('/').last().unwrap_or(mod_path).to_string();
+                        }
+                    }
+                }
+                text.to_string()
+            }
+            "go" => {
+                // Strip quotes and get the last part of the path
+                let clean = text.trim_matches('"').trim_matches('\'');
+                let parts: Vec<&str> = clean.split('/').collect();
+                if parts.len() > 1 {
+                    // Avoid returning just "internal" or some generic segment if possible
+                    let last = parts.last().unwrap_or(&clean);
+                    if *last == "internal" || *last == "pkg" {
+                        if parts.len() > 2 {
+                             return format!("{}/{}", parts[parts.len()-2], last);
+                        }
+                    }
+                    last.to_string()
+                } else {
+                    clean.to_string()
+                }
+            }
+            _ => text.to_string()
+        }
+    }
 }
+
 
 impl CodeParser for GenericParser {
     fn parse(&self, file_path: &Path, content: &str) -> (Vec<Node>, Vec<Edge>) {
@@ -53,7 +122,7 @@ impl CodeParser for GenericParser {
             for m in matches {
                 for capture in m.captures {
                     if let Ok(text) = capture.node.utf8_text(content.as_bytes()) {
-                        let name = text.trim();
+                        let name = self.clean_node_name(text);
                         if name.is_empty() { continue; }
                         
                         let tag = query.capture_names()[capture.index as usize];
