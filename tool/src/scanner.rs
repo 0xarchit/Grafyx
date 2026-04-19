@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Language {
     JavaScript,
+    TypeScript,
     Python,
     Go,
     Rust,
@@ -14,7 +15,8 @@ pub enum Language {
 impl Language {
     pub fn from_extension(ext: &str) -> Self {
         match ext {
-            "js" | "ts" | "jsx" | "tsx" => Self::JavaScript,
+            "js" | "jsx" => Self::JavaScript,
+            "ts" | "tsx" => Self::TypeScript,
             "py" => Self::Python,
             "go" => Self::Go,
             "rs" => Self::Rust,

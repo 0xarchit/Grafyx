@@ -13,9 +13,6 @@ pub enum Commands {
         #[arg(long, num_args = 1..)]
         dirs: Vec<String>,
 
-        #[arg(long, default_value_t = false)]
-        merge: bool,
-
         #[arg(long, num_args = 1..)]
         ignore: Option<Vec<String>>,
 

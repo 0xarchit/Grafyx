@@ -6,12 +6,10 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 ignore = "0.4.22"
-walkdir = "2.5"
 rayon = "1.10.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 rusqlite = { version = "0.31", features = ["bundled"] }
-uuid = { version = "1.8", features = ["v4", "serde"] }
 tree-sitter = "0.22"
 tree-sitter-javascript = "0.21"
 tree-sitter-typescript = "0.21"
@@ -20,8 +18,10 @@ tree-sitter-java = "0.21"
 tree-sitter-go = "0.21"
 tree-sitter-rust = "0.21"
 self_update = { version = "0.44", features = ["archive-tar", "archive-zip", "compression-flate2", "compression-zip-deflate"] }
-dialoguer = "0.12"
 home = "0.5"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"

@@ -2,6 +2,7 @@ use super::CodeParser;
 use crate::ir::{Edge, Node, NodeKind, RelationType};
 use std::path::Path;
 use tree_sitter::{Language, Parser as TSParser, Query, QueryCursor};
+use anyhow::{Result, Context};
 
 pub struct GenericParser {
     language: Language,
@@ -89,21 +90,21 @@ impl GenericParser {
 
 
 impl CodeParser for GenericParser {
-    fn parse(&self, file_path: &Path, content: &str) -> (Vec<Node>, Vec<Edge>) {
+    fn parse(&self, file_path: &Path, content: &str) -> Result<(Vec<Node>, Vec<Edge>)> {
         let mut parser = TSParser::new();
-        let _ = parser.set_language(&self.language);
+        parser.set_language(&self.language).context("Failed to set tree-sitter language")?;
         
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
         
-        let tree = match parser.parse(content, None) {
-            Some(t) => t,
-            None => return (nodes, edges),
-        };
+        let tree = parser.parse(content, None)
+            .context("Tree-sitter failed to parse content")?;
         
         let file_name = file_path.to_string_lossy().to_string();
         let file_id = format!("{}::{}::FILE", self.lang_name, file_name);
         
+        let end_line = tree.root_node().end_position().row;
+
         nodes.push(Node {
             id: file_id.clone(),
             kind: NodeKind::File,
@@ -112,7 +113,7 @@ impl CodeParser for GenericParser {
             file_path: file_name.clone(),
             service: "".to_string(),
             start_line: 0,
-            end_line: content.lines().count(),
+            end_line,
         });
         
         if let Ok(query) = Query::new(&self.language, self.query_str) {
@@ -154,6 +155,6 @@ impl CodeParser for GenericParser {
             }
         }
         
-        (nodes, edges)
+        Ok((nodes, edges))
     }
 }
