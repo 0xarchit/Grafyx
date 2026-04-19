@@ -69,11 +69,12 @@ impl Linker {
         let mut final_nodes = Vec::new();
         let mut id_map = HashMap::new();
         let mut file_path_to_id = HashMap::new();
+        let mut id_to_file_path = HashMap::new();
         let mut file_stem_to_ids: HashMap<String, Vec<String>> = HashMap::new();
- 
         for node in &graph.nodes {
             if node.kind == crate::ir::NodeKind::File {
                 file_path_to_id.insert(node.file_path.clone(), node.id.clone());
+                id_to_file_path.insert(node.id.clone(), node.file_path.clone());
                 let path = std::path::Path::new(&node.file_path);
                 if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                     file_stem_to_ids.entry(stem.to_string()).or_default().push(node.id.clone());
@@ -104,21 +105,51 @@ impl Linker {
                     break;
                 }
             }
- 
+
             match node.kind {
                 crate::ir::NodeKind::File => {
                     final_nodes.push(node);
                 }
                 crate::ir::NodeKind::Module => {
-                    // Try exact path first, then stem
-                    if let Some(file_id) = file_path_to_id.get(&node.name).or_else(|| {
-                         file_stem_to_ids.get(&node.name).and_then(|ids| ids.first())
-                    }) {
-                        id_map.insert(node.id.clone(), file_id.clone());
+                    // Disambiguation: If multiple files match a stem (e.g. auth.py),
+                    // prioritize the one in the same directory or closest ancestor.
+                    let target_id = file_path_to_id.get(&node.name).cloned().or_else(|| {
+                         file_stem_to_ids.get(&node.name).and_then(|ids: &Vec<String>| {
+                            if ids.len() == 1 {
+                                Some(ids[0].clone())
+                            } else {
+                                // Scoped search: find ID with maximum shared path prefix with node.file_path
+                                ids.iter().max_by_key(|id| {
+                                    if let Some(target_path) = id_to_file_path.get(*id) {
+                                        let p1 = std::path::Path::new(&node.file_path);
+                                        let p2 = std::path::Path::new(target_path);
+                                        let mut score = 0;
+                                        for (c1, c2) in p1.components().zip(p2.components()) {
+                                            if c1 == c2 {
+                                                score += 1;
+                                            } else {
+                                                break;
+                                            }
+                                        }
+                                        score
+                                    } else {
+                                        0
+                                    }
+                                }).cloned()
+                            }
+                         })
+                    });
+
+                    if let Some(file_id) = target_id {
+                        id_map.insert(node.id.clone(), file_id);
                     } else {
                         key_buffer.clear();
-                        use std::fmt::Write;
-                        let _ = write!(key_buffer, "{:?}::{}::{}", node.kind, node.name, node.file_path);
+                        key_buffer.push_str(&node.kind.to_string());
+                        key_buffer.push_str("::");
+                        key_buffer.push_str(&node.name);
+                        key_buffer.push_str("::");
+                        key_buffer.push_str(&node.file_path);
+                        
                         if let Some(existing_id) = unique_nodes.get(&key_buffer) {
                             id_map.insert(node.id.clone(), existing_id.clone());
                         } else {
@@ -129,8 +160,12 @@ impl Linker {
                 }
                 _ => {
                     key_buffer.clear();
-                    use std::fmt::Write;
-                    let _ = write!(key_buffer, "{:?}::{}::{}", node.kind, node.name, node.file_path);
+                    key_buffer.push_str(&node.kind.to_string());
+                    key_buffer.push_str("::");
+                    key_buffer.push_str(&node.name);
+                    key_buffer.push_str("::");
+                    key_buffer.push_str(&node.file_path);
+
                     if let Some(existing_id) = unique_nodes.get(&key_buffer) {
                         id_map.insert(node.id.clone(), existing_id.clone());
                     } else {
@@ -156,6 +191,8 @@ impl Linker {
         for edge in std::mem::take(&mut graph.edges) {
             if edge.from_node_id == edge.to_node_id { continue; }
             
+            // Signature optimization: use references for hashing where possible
+            // but we need a stable key.
             let sig = (edge.from_node_id.clone(), edge.to_node_id.clone(), edge.relation_type.clone());
             if !unique_edges.contains(&sig) {
                 unique_edges.insert(sig);
@@ -163,5 +200,76 @@ impl Linker {
             }
         }
         graph.edges = final_edges;
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::{Node, NodeKind, Edge, RelationType};
+
+    #[test]
+    fn test_linker_service_mapping() {
+        let linker = Linker::new(vec!["/path/to/app".to_string(), "/path/to/app/service1".to_string()]);
+        let mut graph = Graph::new();
+        graph.nodes.push(Node {
+            id: "node1".to_string(),
+            kind: NodeKind::File,
+            name: "test.py".to_string(),
+            language: "python".to_string(),
+            file_path: "/path/to/app/service1/test.py".to_string(),
+            service: "".to_string(),
+            start_line: 0,
+            end_line: 0,
+        });
+
+        linker.link(&mut graph);
+
+        // Check if node1 got assigned to service1 (longest prefix)
+        let node = graph.nodes.iter().find(|n| n.id == "node1").unwrap();
+        assert_eq!(node.service, "service1");
+        
+        // Root node + 2 service nodes + node1 = 4 nodes
+        assert_eq!(graph.nodes.len(), 4);
+    }
+
+    #[test]
+    fn test_linker_module_remapping() {
+        let linker = Linker::new(vec!["/app".to_string()]);
+        let mut graph = Graph::new();
+        
+        // Target file
+        graph.nodes.push(Node {
+            id: "file1_id".to_string(),
+            kind: NodeKind::File,
+            name: "/app/lib.py".to_string(),
+            language: "python".to_string(),
+            file_path: "/app/lib.py".to_string(),
+            service: "".to_string(),
+            start_line: 0,
+            end_line: 0,
+        });
+
+        // Module node representing an import of lib.py
+        graph.nodes.push(Node {
+            id: "import_node_id".to_string(),
+            kind: NodeKind::Module,
+            name: "lib".to_string(), // Stem-based match
+            language: "python".to_string(),
+            file_path: "/app/main.py".to_string(),
+            service: "".to_string(),
+            start_line: 1,
+            end_line: 1,
+        });
+
+        graph.edges.push(Edge {
+            from_node_id: "main_file_id".to_string(),
+            to_node_id: "import_node_id".to_string(),
+            relation_type: RelationType::Imports,
+        });
+
+        linker.link(&mut graph);
+
+        // The edge to import_node_id should be remapped to file1_id
+        assert!(graph.edges.iter().any(|e| e.to_node_id == "file1_id"));
     }
 }

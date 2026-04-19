@@ -7,6 +7,13 @@ pub struct Cli {
     pub command: Commands,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum OutputFormat {
+    Json,
+    Sqlite,
+    Both,
+}
+
 #[derive(Subcommand)]
 pub enum Commands {
     Scan {
@@ -17,13 +24,14 @@ pub enum Commands {
         ignore: Option<Vec<String>>,
 
         #[arg(long, default_value = "both")]
-        format: String,
+        format: OutputFormat,
 
         #[arg(long)]
         output: String,
     },
     #[command(alias = "i")]
     Install,
+    #[cfg(feature = "self-update")]
     #[command(alias = "u")]
     Upgrade,
 }

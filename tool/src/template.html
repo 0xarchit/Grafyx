@@ -424,8 +424,9 @@
         </div>
     </div>
 
+    {{ GRAPH_DATA_PLACEHOLDER }}
     <script>
-        const RAW = {{ GRAPH_DATA_PLACEHOLDER }};
+        const RAW = JSON.parse(document.getElementById('graph-data').textContent);
 
         const COLORS = {
             root: '#ffffff',

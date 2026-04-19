@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::str::FromStr;
+use anyhow::{anyhow, Error};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
 pub enum NodeKind {
     Root,
     Service,
@@ -11,7 +15,39 @@ pub enum NodeKind {
     Variable,
 }
 
+impl fmt::Display for NodeKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Root => "root",
+            Self::Service => "service",
+            Self::File => "file",
+            Self::Module => "module",
+            Self::Class => "class",
+            Self::Function => "function",
+            Self::Variable => "variable",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl FromStr for NodeKind {
+    type Err = Error;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "root" => Ok(Self::Root),
+            "service" => Ok(Self::Service),
+            "file" => Ok(Self::File),
+            "module" => Ok(Self::Module),
+            "class" => Ok(Self::Class),
+            "function" => Ok(Self::Function),
+            "variable" => Ok(Self::Variable),
+            _ => Err(anyhow!("Unknown NodeKind: {}", s)),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
 pub enum RelationType {
     RootLink,
     ServiceCall,
@@ -22,6 +58,41 @@ pub enum RelationType {
     Implements,
     Uses,
     ApiLink,
+}
+
+impl fmt::Display for RelationType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::RootLink => "rootlink",
+            Self::ServiceCall => "servicecall",
+            Self::Imports => "imports",
+            Self::Calls => "calls",
+            Self::Defines => "defines",
+            Self::Extends => "extends",
+            Self::Implements => "implements",
+            Self::Uses => "uses",
+            Self::ApiLink => "apilink",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl FromStr for RelationType {
+    type Err = Error;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "rootlink" => Ok(Self::RootLink),
+            "servicecall" => Ok(Self::ServiceCall),
+            "imports" => Ok(Self::Imports),
+            "calls" => Ok(Self::Calls),
+            "defines" => Ok(Self::Defines),
+            "extends" => Ok(Self::Extends),
+            "implements" => Ok(Self::Implements),
+            "uses" => Ok(Self::Uses),
+            "apilink" => Ok(Self::ApiLink),
+            _ => Err(anyhow!("Unknown RelationType: {}", s)),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -43,7 +114,7 @@ pub struct Edge {
     pub relation_type: RelationType,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Graph {
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
@@ -51,9 +122,6 @@ pub struct Graph {
 
 impl Graph {
     pub fn new() -> Self {
-        Self {
-            nodes: Vec::new(),
-            edges: Vec::new(),
-        }
+        Self::default()
     }
 }

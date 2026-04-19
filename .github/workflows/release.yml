@@ -92,12 +92,23 @@ jobs:
           Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
           Compress-Archive -Path dist/${{ matrix.asset_name }} -DestinationPath dist/${{ matrix.asset_name }}.zip
 
+      - name: Sign Binaries
+        working-directory: tool
+        shell: bash
+        env:
+          GRAFYX_RELEASE_SIGNING_KEY: ${{ secrets.GRAFYX_RELEASE_SIGNING_KEY }}
+        run: |
+          cargo run --release --bin sign dist/${{ matrix.asset_name }}
+          cargo run --release --bin sign dist/${{ matrix.asset_name }}.${{ matrix.archive_ext }}
+
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           body: ${{ steps.notes.outputs.BODY }}
           files: |
             tool/dist/${{ matrix.asset_name }}
+            tool/dist/${{ matrix.asset_name }}.sig
             tool/dist/${{ matrix.asset_name }}.${{ matrix.archive_ext }}
+            tool/dist/${{ matrix.asset_name }}.${{ matrix.archive_ext }}.sig
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

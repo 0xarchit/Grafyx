@@ -110,15 +110,13 @@ impl Scanner {
             for ignore in &self.ignore_patterns {
                 builder.add_custom_ignore_filename(ignore);
             }
-            for result in builder.build() {
-                if let Ok(entry) = result {
-                    if entry.file_type().map_or(false, |ft| ft.is_file()) {
-                        let file_path = entry.into_path();
-                        if let Some(ext) = file_path.extension().and_then(|s| s.to_str()) {
-                            let lang = Language::from_extension(ext);
-                            if lang != Language::Unknown {
-                                results.push((file_path, lang));
-                            }
+            for entry in builder.build().flatten() {
+                if entry.file_type().is_some_and(|ft| ft.is_file()) {
+                    let file_path = entry.into_path();
+                    if let Some(ext) = file_path.extension().and_then(|s| s.to_str()) {
+                        let lang = Language::from_extension(ext);
+                        if lang != Language::Unknown {
+                            results.push((file_path, lang));
                         }
                     }
                 }

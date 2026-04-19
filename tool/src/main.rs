@@ -1,28 +1,42 @@
-pub mod cli;
-pub mod ir;
-pub mod linker;
-pub mod parser;
-pub mod scanner;
-pub mod storage;
+#![deny(unsafe_code)]
 
-use anyhow::{Context, Result};
+mod cli;
+mod ir;
+mod linker;
+mod parser;
+mod scanner;
+mod storage;
+mod update;
+
+use anyhow::{bail, Context, Result};
 use clap::Parser;
 use cli::{Cli, Commands};
 use ir::{Graph, Node, Edge};
+use std::path::Path;
 use linker::Linker;
 use parser::{generic::GenericParser, CodeParser};
 use rayon::prelude::*;
 use scanner::{Language, Scanner};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::fs;
-use std::path::Path;
 use storage::Storage;
 use tracing::info;
-use tracing_subscriber;
 
 #[cfg(windows)]
 use winreg::enums::*;
 #[cfg(windows)]
 use winreg::RegKey;
+
+#[cfg(not(windows))]
+fn backup_file(path: &Path) -> Result<()> {
+    if path.exists() {
+        let backup_path = path.with_extension(format!("{}.bak", path.extension().and_then(|s| s.to_str()).unwrap_or("backup")));
+        fs::copy(path, &backup_path)
+            .with_context(|| format!("Failed to create backup at {:?}", backup_path))?;
+        info!("Created backup: {:?}", backup_path);
+    }
+    Ok(())
+}
 
 fn handle_install() -> Result<()> {
     let home_dir = home::home_dir().context("Could not find home directory")?;
@@ -72,12 +86,15 @@ fn handle_install() -> Result<()> {
         for shell in shells {
             let shell_path = home_dir.join(shell);
             if shell_path.exists() {
+                backup_file(&shell_path)?;
                 if let Ok(content) = fs::read_to_string(&shell_path) {
                     if !content.contains(&install_dir.to_string_lossy().to_string()) {
                         use std::io::Write;
-                        if let Ok(mut file) = fs::OpenOptions::new().append(true).open(&shell_path) {
-                            writeln!(file, "{}", path_line).ok();
-                        }
+                        let mut file = fs::OpenOptions::new()
+                            .append(true)
+                            .open(&shell_path)
+                            .with_context(|| format!("Failed to open shell config for writing: {:?}", shell_path))?;
+                        writeln!(file, "{}", path_line).with_context(|| format!("Failed to append path to {}", shell_path.display()))?;
                     }
                 }
             }
@@ -86,23 +103,70 @@ fn handle_install() -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "self-update")]
 fn handle_upgrade() -> Result<()> {
     println!("Checking for updates...");
-    let status = self_update::backends::github::Update::configure()
+    let releases = self_update::backends::github::ReleaseList::configure()
         .repo_owner("0xarchit")
         .repo_name("grafyx")
-        .bin_name("grafyx")
-        .show_download_progress(true)
-        .current_version(env!("CARGO_PKG_VERSION"))
         .build()
-        .context("Failed to configure update")?
-        .update()
-        .context("Failed to perform update")?;
+        .context("Failed to configure release list")?
+        .fetch()
+        .context("Failed to fetch releases")?;
 
-    if status.updated() {
-        println!("Updated to version {}!", status.version());
+    if releases.is_empty() {
+        println!("No releases found.");
+        return Ok(());
+    }
+
+    let latest = &releases[0];
+    let latest_version = &latest.version;
+    let current_version = env!("CARGO_PKG_VERSION");
+
+    if self_update::version::bump_is_greater(current_version, latest_version)? {
+        println!("New version {} available! (Current: {})", latest_version, current_version);
+        
+        let target = self_update::get_target();
+        let bin_asset = latest.asset_for(target, None)
+            .context("No binary asset found for your platform")?;
+            
+        let sig_asset_name = format!("{}.sig", bin_asset.name);
+        let sig_asset = latest.assets.iter().find(|a| a.name == sig_asset_name)
+            .context(format!("No signature asset found ({}). Security verification is mandatory for updates.", sig_asset_name))?;
+
+        let tmp_dir = tempfile::Builder::new().prefix("grafyx-update").tempdir()?;
+        let tmp_bin = tmp_dir.path().join(&bin_asset.name);
+        let tmp_sig = tmp_dir.path().join(&sig_asset.name);
+
+        println!("Downloading update: {}...", bin_asset.name);
+        let mut bin_file = fs::File::create(&tmp_bin).context("Failed to create temp binary file")?;
+        self_update::Download::from_url(&bin_asset.download_url)
+            .show_progress(true)
+            .download_to(&mut bin_file)
+            .context("Failed to download binary")?;
+
+        println!("Downloading signature: {}...", sig_asset.name);
+        let mut sig_file = fs::File::create(&tmp_sig).context("Failed to create temp signature file")?;
+        self_update::Download::from_url(&sig_asset.download_url)
+            .download_to(&mut sig_file)
+            .context("Failed to download signature")?;
+
+        println!("Verifying cryptographic signature...");
+        let sig_bytes = std::fs::read(&tmp_sig).context("Failed to read signature file")?;
+        update::verify_signature(&tmp_bin, &sig_bytes)
+            .context("Security verification failed! The update is untrusted.")?;
+            
+        println!("Signature verified successfully.");
+        println!("Installing update...");
+        
+        self_update::Move::from_source(&tmp_bin)
+            .replace_using_temp(&tmp_bin)
+            .to_dest(&std::env::current_exe().context("Failed to locate current executable")?)
+            .context("Failed to install new binary")?;
+
+        println!("Successfully updated to Grafyx {}!", latest_version);
     } else {
-        println!("Already up to date!");
+        println!("Already up to date ({}).", current_version);
     }
     Ok(())
 }
@@ -110,33 +174,27 @@ fn handle_upgrade() -> Result<()> {
 fn resolve_parser(lang: &Language) -> Option<GenericParser> {
     match lang {
         Language::JavaScript => Some(GenericParser::new(
-            tree_sitter_javascript::language(),
-            "[(import_statement) @import (call_expression function: (identifier) @call) (member_expression property: (property_identifier) @call)]",
+            tree_sitter_javascript::LANGUAGE.into(),
             "javascript",
         )),
         Language::TypeScript => Some(GenericParser::new(
-            tree_sitter_typescript::language_typescript(),
-            "[(import_statement) @import (call_expression function: (identifier) @call) (member_expression property: (property_identifier) @call)]",
+            tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
             "typescript",
         )),
         Language::Python => Some(GenericParser::new(
-            tree_sitter_python::language(),
-            "[(import_statement) @import (import_from_statement) @import (call function: (identifier) @call) (call function: (attribute attribute: (identifier) @call))] ",
+            tree_sitter_python::LANGUAGE.into(),
             "python",
         )),
         Language::Java => Some(GenericParser::new(
-            tree_sitter_java::language(),
-            "[(import_declaration) @import (method_invocation name: (identifier) @call)]",
+            tree_sitter_java::LANGUAGE.into(),
             "java",
         )),
         Language::Go => Some(GenericParser::new(
-            tree_sitter_go::language(),
-            "[(import_declaration) @import (call_expression function: (identifier) @call) (call_expression function: (selector_expression field: (field_identifier) @call))]",
+            tree_sitter_go::LANGUAGE.into(),
             "go",
         )),
         Language::Rust => Some(GenericParser::new(
-            tree_sitter_rust::language(),
-            "[(mod_item name: (identifier) @import) (call_expression function: (identifier) @call) (call_expression function: (field_expression field: (field_identifier) @call)) (macro_invocation macro: (identifier) @call) (use_declaration argument: (scoped_identifier name: (identifier) @import))]",
+            tree_sitter_rust::LANGUAGE.into(),
             "rust",
         )),
         Language::Unknown => None,
@@ -144,16 +202,36 @@ fn resolve_parser(lang: &Language) -> Option<GenericParser> {
 }
 
 fn main() -> Result<()> {
+    let parse_failures = AtomicUsize::new(0);
+
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
         .init();
     let cli = Cli::parse();
 
     match &cli.command {
         Commands::Scan { dirs, ignore, format, output } => {
+            for dir in dirs {
+                let p = Path::new(dir);
+                if !p.exists() {
+                    bail!("Scanning target directory does not exist: {}", dir);
+                }
+                if !p.is_dir() {
+                    bail!("Scanning target is not a directory: {}", dir);
+                }
+            }
+            
             let out_path = Path::new(output);
             if !out_path.exists() {
                 fs::create_dir_all(out_path).context("Failed to create output directory")?;
+            }
+
+            // Ensure DB is initialized before scanning for cache lookups
+            if let Ok(conn) = Storage::open_db(out_path) {
+                let _ = Storage::init_db(&conn);
             }
 
             let scanner = Scanner::new(dirs.clone(), ignore.clone());
@@ -167,34 +245,31 @@ fn main() -> Result<()> {
             let results: Vec<(Vec<Node>, Vec<Edge>, bool)> = files.into_par_iter().map(|(file_path, lang)| {
                 let conn = Storage::open_db(out_path).ok();
                 
-                let mut mtime = 0;
-                let mut size = 0;
-                if let Ok(metadata) = fs::metadata(&file_path) {
-                    if let Ok(modified) = metadata.modified() {
-                        if let Ok(duration) = modified.duration_since(std::time::UNIX_EPOCH) {
-                            mtime = duration.as_secs();
-                        }
-                    }
-                    size = metadata.len();
-                }
+                if let Ok(content) = fs::read_to_string(&file_path) {
+                    let hash = blake3::hash(content.as_bytes()).to_hex().to_string();
 
-                if let Some(ref c) = conn {
-                    if let Some(old_mtime) = Storage::get_file_mtime(c, &file_path.to_string_lossy()) {
-                        if old_mtime == mtime {
-                            if let Ok(data) = Storage::load_file_data(c, &file_path.to_string_lossy()) {
-                                return (data.0, data.1, true);
+                    if let Some(ref c) = conn {
+                        if let Some(old_hash) = Storage::get_file_hash(c, &file_path.to_string_lossy()) {
+                            if old_hash == hash {
+                                if let Ok(data) = Storage::load_file_data(c, &file_path.to_string_lossy()) {
+                                    return (data.0, data.1, true);
+                                }
                             }
                         }
                     }
-                }
 
-                if let Some(parser) = resolve_parser(&lang) {
-                    if let Ok(content) = fs::read_to_string(&file_path) {
-                        if let Ok((nodes, edges)) = parser.parse(&file_path, &content) {
-                             if let Some(ref c) = conn {
-                                 let _ = Storage::update_file_metadata(c, &file_path.to_string_lossy(), mtime, size);
-                             }
-                             return (nodes, edges, false);
+                    if let Some(parser) = resolve_parser(&lang) {
+                        match parser.parse(&file_path, &content) {
+                            Ok((nodes, edges)) => {
+                                if let Some(ref c) = conn {
+                                    let _ = Storage::update_file_hash(c, &file_path.to_string_lossy(), &hash);
+                                }
+                                return (nodes, edges, false);
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to parse {}: {}", file_path.display(), e);
+                                parse_failures.fetch_add(1, Ordering::Relaxed);
+                            }
                         }
                     }
                 }
@@ -210,16 +285,23 @@ fn main() -> Result<()> {
                 if skipped { skipped_count += 1; }
             }
 
-            info!("Scan complete. Total files: {}, Cached: {}", total_files, skipped_count);
+            let fail_count = parse_failures.load(Ordering::Relaxed);
+            info!("Scan complete. Total files: {}, Cached: {}, Failed: {}", total_files, skipped_count, fail_count);
 
             let linker = Linker::new(dirs.clone());
             linker.link(&mut graph);
 
-            if format == "json" || format == "both" {
-                Storage::save_json(&graph, out_path)?;
-            }
-            if format == "sqlite" || format == "both" {
-                Storage::save_sqlite(&graph, out_path)?;
+            match format {
+                cli::OutputFormat::Json => {
+                    Storage::save_json(&graph, out_path)?;
+                }
+                cli::OutputFormat::Sqlite => {
+                    Storage::save_sqlite(&graph, out_path)?;
+                }
+                cli::OutputFormat::Both => {
+                    Storage::save_json(&graph, out_path)?;
+                    Storage::save_sqlite(&graph, out_path)?;
+                }
             }
             Storage::save_html(&graph, out_path)?;
 
@@ -228,6 +310,7 @@ fn main() -> Result<()> {
         Commands::Install => {
             handle_install()?;
         }
+        #[cfg(feature = "self-update")]
         Commands::Upgrade => {
             handle_upgrade()?;
         }

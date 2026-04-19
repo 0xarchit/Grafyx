@@ -34,11 +34,14 @@ impl Storage {
         conn.execute(
             "CREATE TABLE IF NOT EXISTS files (
                 path TEXT PRIMARY KEY,
-                last_modified INTEGER,
-                size INTEGER
+                hash TEXT
             )",
             [],
         )?;
+
+        // Migration: ensure files table has hash column and remove old ones if they exist
+        // Note: For simplicity in this upgrade, we just ensure the column exists.
+        let _ = conn.execute("ALTER TABLE files ADD COLUMN hash TEXT", []);
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS nodes (
@@ -73,9 +76,9 @@ impl Storage {
         Ok(())
     }
 
-    pub fn get_file_mtime(conn: &Connection, path: &str) -> Option<u64> {
+    pub fn get_file_hash(conn: &Connection, path: &str) -> Option<String> {
         conn.query_row(
-            "SELECT last_modified FROM files WHERE path = ?1",
+            "SELECT hash FROM files WHERE path = ?1",
             params![path],
             |row| row.get(0),
         ).ok()
@@ -87,17 +90,14 @@ impl Storage {
 
         let mut stmt = conn.prepare("SELECT id, kind, name, language, file_path, start_line, end_line, service FROM nodes WHERE file_path = ?1")?;
         let node_iter = stmt.query_map(params![path], |row| {
+            let kind_str: String = row.get(1)?;
+            let kind = std::str::FromStr::from_str(&kind_str).unwrap_or_else(|_| {
+                tracing::warn!("Unknown NodeKind in DB: {}. Defaulting to Variable", kind_str);
+                NodeKind::Variable
+            });
             Ok(Node {
                 id: row.get(0)?,
-                kind: match row.get::<_, String>(1)?.as_str() {
-                    "Root" => NodeKind::Root,
-                    "Service" => NodeKind::Service,
-                    "File" => NodeKind::File,
-                    "Module" => NodeKind::Module,
-                    "Class" => NodeKind::Class,
-                    "Function" => NodeKind::Function,
-                    _ => NodeKind::Variable,
-                },
+                kind,
                 name: row.get(2)?,
                 language: row.get(3)?,
                 file_path: row.get(4)?,
@@ -120,21 +120,15 @@ impl Storage {
             ")?;
             
             let edge_iter = stmt.query_map(params![path], |row| {
+                let rel_str: String = row.get(2)?;
+                let relation_type = std::str::FromStr::from_str(&rel_str).unwrap_or_else(|_| {
+                    tracing::warn!("Unknown RelationType in DB: {}. Defaulting to Uses", rel_str);
+                    RelationType::Uses
+                });
                 Ok(Edge {
                     from_node_id: row.get(0)?,
                     to_node_id: row.get(1)?,
-                    relation_type: match row.get::<_, String>(2)?.as_str() {
-                        "RootLink" => RelationType::RootLink,
-                        "ServiceCall" => RelationType::ServiceCall,
-                        "Imports" => RelationType::Imports,
-                        "Calls" => RelationType::Calls,
-                        "Defines" => RelationType::Defines,
-                        "Extends" => RelationType::Extends,
-                        "Implements" => RelationType::Implements,
-                        "Uses" => RelationType::Uses,
-                        "ApiLink" => RelationType::ApiLink,
-                        _ => RelationType::Uses,
-                    },
+                    relation_type,
                 })
             })?;
 
@@ -146,10 +140,10 @@ impl Storage {
         Ok((nodes, edges))
     }
 
-    pub fn update_file_metadata(conn: &Connection, path: &str, mtime: u64, size: u64) -> Result<()> {
+    pub fn update_file_hash(conn: &Connection, path: &str, hash: &str) -> Result<()> {
         conn.execute(
-            "INSERT OR REPLACE INTO files (path, last_modified, size) VALUES (?1, ?2, ?3)",
-            params![path, mtime as i64, size as i64],
+            "INSERT OR REPLACE INTO files (path, hash) VALUES (?1, ?2)",
+            params![path, hash],
         )?;
         Ok(())
     }
@@ -162,15 +156,7 @@ impl Storage {
         let tx = conn.transaction()?;
         {
             for node in &graph.nodes {
-                let kind_str = match node.kind {
-                    NodeKind::Root => "Root",
-                    NodeKind::Service => "Service",
-                    NodeKind::File => "File",
-                    NodeKind::Module => "Module",
-                    NodeKind::Class => "Class",
-                    NodeKind::Function => "Function",
-                    NodeKind::Variable => "Variable",
-                };
+                let kind_str = node.kind.to_string();
                 tx.execute(
                     "INSERT OR REPLACE INTO nodes (id, kind, name, language, file_path, service, start_line, end_line) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                     params![
@@ -187,17 +173,7 @@ impl Storage {
             }
 
             for edge in &graph.edges {
-                let rel_str = match edge.relation_type {
-                    RelationType::RootLink => "RootLink",
-                    RelationType::ServiceCall => "ServiceCall",
-                    RelationType::Imports => "Imports",
-                    RelationType::Calls => "Calls",
-                    RelationType::Defines => "Defines",
-                    RelationType::Extends => "Extends",
-                    RelationType::Implements => "Implements",
-                    RelationType::Uses => "Uses",
-                    RelationType::ApiLink => "ApiLink",
-                };
+                let rel_str = edge.relation_type.to_string();
                 tx.execute(
                     "INSERT OR REPLACE INTO edges (from_node_id, to_node_id, relation_type) VALUES (?1, ?2, ?3)",
                     params![
@@ -217,12 +193,100 @@ impl Storage {
         let template = include_str!("template.html");
         let json_data = serde_json::to_string(graph).context("Failed to serialize graph for HTML")?;
         
-        // Escape </script> to prevent breaking out of the <script> block in HTML
-        let sanitized_json = json_data.replace("</script>", "<\\/script>");
+        let data_script = format!("<script id=\"graph-data\" type=\"application/json\">{}</script>", json_data);
+        let final_html = template.replace("{{GRAPH_DATA_PLACEHOLDER}}", &data_script);
         
-        let final_html = template.replace("{{GRAPH_DATA_PLACEHOLDER}}", &sanitized_json);
         fs::write(&file_path, final_html).with_context(|| format!("Failed to write HTML report to {:?}", file_path))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::{Node, NodeKind};
+
+    #[test]
+    fn test_storage_sqlite_roundtrip() {
+        let conn = Connection::open_in_memory().unwrap();
+        Storage::init_db(&conn).unwrap();
+
+        let node = Node {
+            id: "node1".to_string(),
+            kind: NodeKind::Function,
+            name: "test_func".to_string(),
+            language: "rust".to_string(),
+            file_path: "src/main.rs".to_string(),
+            service: "core".to_string(),
+            start_line: 10,
+            end_line: 20,
+        };
+
+        // Test manual insertion and load to verify logic
+        let kind_str = node.kind.to_string();
+        conn.execute(
+            "INSERT INTO nodes (id, kind, name, language, file_path, service, start_line, end_line) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                node.id,
+                kind_str,
+                node.name,
+                node.language,
+                node.file_path,
+                node.service,
+                node.start_line,
+                node.end_line
+            ],
+        ).unwrap();
+
+        let (nodes, _edges) = Storage::load_file_data(&conn, "src/main.rs").unwrap();
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0].name, "test_func");
+        assert_eq!(nodes[0].kind, NodeKind::Function);
+    }
+
+    #[test]
+    fn test_sqlite_concurrency() {
+        use std::sync::Arc;
+        use std::thread;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let db_path = Arc::new(temp_dir.path().to_path_buf());
+        
+        // Init DB
+        {
+            let conn = Storage::open_db(&db_path).unwrap();
+            Storage::init_db(&conn).unwrap();
+        }
+
+        let mut handles = Vec::new();
+        for i in 0..5 {
+            let path = Arc::clone(&db_path);
+            handles.push(thread::spawn(move || {
+                let _conn = Storage::open_db(&path).unwrap();
+                for j in 0..50 {
+                    let node = Node {
+                        id: format!("node_{}_{}", i, j),
+                        kind: NodeKind::Function,
+                        name: format!("func_{}", j),
+                        language: "rust".to_string(),
+                        file_path: format!("file_{}.rs", i),
+                        service: "test".to_string(),
+                        start_line: 0,
+                        end_line: 0,
+                    };
+                    let graph = Graph { nodes: vec![node], edges: vec![] };
+                    Storage::save_sqlite(&graph, &path).unwrap();
+                }
+            }));
+        }
+
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let conn = Storage::open_db(&db_path).unwrap();
+        let mut stmt = conn.prepare("SELECT COUNT(*) FROM nodes").unwrap();
+        let count: i32 = stmt.query_row([], |r| r.get(0)).unwrap();
+        assert_eq!(count, 250);
     }
 }
 
