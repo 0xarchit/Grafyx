@@ -90,62 +90,60 @@ body {
 </div>
 <div id="graph"></div>
 <script>
-fetch('./graph.json')
-    .then(res => res.json())
-    .then(data => {
-        document.getElementById('node-count').innerText = data.nodes.length;
-        document.getElementById('edge-count').innerText = data.edges.length;
+const data = {{GRAPH_DATA_PLACEHOLDER}};
+
+document.getElementById('node-count').innerText = data.nodes.length;
+document.getElementById('edge-count').innerText = data.edges.length;
+
+const gData = {
+    nodes: data.nodes.map(n => ({ id: n.id, name: n.name, val: n.kind === 'File' ? 8 : 4, group: n.language })),
+    links: data.edges.map(e => ({ source: e.from_node_id, target: e.to_node_id }))
+};
+
+const colorMap = {
+    'rust': '#dea584',
+    'javascript': '#f1e05a',
+    'typescript': '#3178c6',
+    'python': '#3572A5',
+    'go': '#00ADD8',
+    'java': '#b07219'
+};
+
+const Graph = ForceGraph()(document.getElementById('graph'))
+    .graphData(gData)
+    .nodeColor(n => colorMap[n.group] || '#66fcf1')
+    .nodeRelSize(5)
+    .nodeResolution(18)
+    .linkWidth(1.2)
+    .linkColor(() => 'rgba(69, 162, 158, 0.35)')
+    .linkDirectionalParticles(2)
+    .linkDirectionalParticleWidth(2)
+    .linkDirectionalParticleSpeed(0.005)
+    .d3Force('charge', d3.forceManyBody().strength(-120))
+    .nodeCanvasObject((node, ctx, globalScale) => {
+        const label = node.name;
+        const fontSize = 14 / globalScale;
+        ctx.font = `500 ${fontSize}px Inter, sans-serif`;
         
-        const gData = {
-            nodes: data.nodes.map(n => ({ id: n.id, name: n.name, val: n.kind === 'File' ? 8 : 4, group: n.language })),
-            links: data.edges.map(e => ({ source: e.from_node_id, target: e.to_node_id }))
-        };
+        ctx.fillStyle = node.color;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, node.val, 0, 2 * Math.PI, false);
+        ctx.fill();
 
-        const colorMap = {
-            'rust': '#dea584',
-            'javascript': '#f1e05a',
-            'typescript': '#3178c6',
-            'python': '#3572A5',
-            'go': '#00ADD8',
-            'java': '#b07219'
-        };
-
-        const Graph = ForceGraph()(document.getElementById('graph'))
-            .graphData(gData)
-            .nodeColor(n => colorMap[n.group] || '#66fcf1')
-            .nodeRelSize(5)
-            .nodeResolution(18)
-            .linkWidth(1.2)
-            .linkColor(() => 'rgba(69, 162, 158, 0.35)')
-            .linkDirectionalParticles(2)
-            .linkDirectionalParticleWidth(2)
-            .linkDirectionalParticleSpeed(0.005)
-            .d3Force('charge', d3.forceManyBody().strength(-120))
-            .nodeCanvasObject((node, ctx, globalScale) => {
-                const label = node.name;
-                const fontSize = 14 / globalScale;
-                ctx.font = `500 ${fontSize}px Inter, sans-serif`;
-                
-                ctx.fillStyle = node.color;
-                ctx.beginPath();
-                ctx.arc(node.x, node.y, node.val, 0, 2 * Math.PI, false);
-                ctx.fill();
-
-                if (globalScale > 1.5) {
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                    const textY = node.y + node.val + fontSize + 2;
-                    ctx.fillText(label, node.x, textY);
-                }
-            })
-            .onNodeHover(node => {
-                document.getElementById('graph').style.cursor = node ? 'pointer' : null;
-            })
-            .onNodeClick(node => {
-                Graph.centerAt(node.x, node.y, 1000);
-                Graph.zoom(4, 2000);
-            });
+        if (globalScale > 1.5) {
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            const textY = node.y + node.val + fontSize + 2;
+            ctx.fillText(label, node.x, textY);
+        }
+    })
+    .onNodeHover(node => {
+        document.getElementById('graph').style.cursor = node ? 'pointer' : null;
+    })
+    .onNodeClick(node => {
+        Graph.centerAt(node.x, node.y, 1000);
+        Graph.zoom(4, 2000);
     });
 </script>
 </body>

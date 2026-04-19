@@ -50,7 +50,7 @@ fn main() {
             );
             let rust_parser = GenericParser::new(
                 tree_sitter_rust::language(),
-                "(call_expression function: (identifier) @call_name)",
+                "[(call_expression function: (identifier) @n) (call_expression function: (field_expression field: (field_identifier) @n)) (macro_invocation macro: (identifier) @n) (use_declaration argument: (scoped_identifier name: (identifier) @n))]",
                 "rust",
             );
 
@@ -93,7 +93,7 @@ fn main() {
             if format == "sqlite" || format == "both" {
                 Storage::save_sqlite(&graph, out_path);
             }
-            Storage::save_html(out_path);
+            Storage::save_html(&graph, out_path);
         }
     }
 }

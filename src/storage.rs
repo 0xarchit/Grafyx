@@ -83,12 +83,17 @@ impl Storage {
         }
     }
 
-    pub fn save_html(output_dir: &Path) {
+    pub fn save_html(graph: &Graph, output_dir: &Path) {
         let file_path = output_dir.join("index.html");
         let template = include_str!("template.html");
+        let json_data = match serde_json::to_string(graph) {
+            Ok(v) => v,
+            Err(_) => "{\"nodes\":[],\"edges\":[]}".to_string(),
+        };
+        let final_html = template.replace("{{GRAPH_DATA_PLACEHOLDER}}", &json_data);
         if let Ok(mut file) = File::create(file_path) {
             use std::io::Write;
-            let _ = file.write_all(template.as_bytes());
+            let _ = file.write_all(final_html.as_bytes());
         }
     }
 }
