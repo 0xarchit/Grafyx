@@ -1,4 +1,4 @@
-/target
+**/target
 skills-lock.json
-output-test
-.agents
+**/output-test
+**/.agents
