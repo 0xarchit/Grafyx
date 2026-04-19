@@ -330,11 +330,11 @@ const COLORS = {
 };
 
 const EDGE_COLORS = {
-    RootLink:    'rgba(255,255,255,0.06)',
-    ServiceCall: 'rgba(255,140,100,0.55)',
-    Imports:     'rgba(180,220,160,0.35)',
-    Calls:       'rgba(120,150,220,0.25)',
-    default:     'rgba(180,180,180,0.18)'
+    RootLink:    'rgba(255,255,255,0.4)',  // Normal White
+    ServiceCall: 'rgba(100,255,180,0.6)',  // Vibrant Green
+    Imports:     'rgba(140,240,150,0.4)',  // Soft Green
+    Calls:       'rgba(220,255,220,0.3)',  // Greenish White
+    default:     'rgba(255,255,255,0.25)' // Normal White
 };
 
 let state = {
@@ -511,8 +511,8 @@ const Graph = ForceGraph()(GraphEl)
     })
     .onZoom(ev => {
         state.zoom = ev.k;
-        if (!state.replaying) softRefresh();
     })
+
     .nodeCanvasObjectMode(() => 'after')
     .nodeCanvasObject((n, ctx, gScale) => {
         const z = gScale;
@@ -574,44 +574,111 @@ const Graph = ForceGraph()(GraphEl)
         ctx.globalAlpha = 1;
     });
 
-// Forces
-Graph.d3Force('x', null);
-Graph.d3Force('y', null);
+// Persistence
+function saveSettings() {
+    localStorage.setItem('kgraph-settings', JSON.stringify({
+        charge: state.charge,
+        dist: state.dist,
+        grav: state.grav,
+        damp: state.damp,
+        showFiles: state.showFiles,
+        showFuncs: state.showFuncs,
+        showClasses: state.showClasses,
+        showImports: state.showImports,
+        showCalls: state.showCalls,
+        labelMode: state.labelMode
+    }));
+}
 
-function applyForces() {
+function loadSettings() {
+    const saved = localStorage.getItem('kgraph-settings');
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            Object.assign(state, parsed);
+            
+            // Sync UI
+            document.getElementById('c-charge').value = state.charge;
+            document.getElementById('v-charge').innerText = state.charge;
+            document.getElementById('c-dist').value = state.dist;
+            document.getElementById('v-dist').innerText = state.dist;
+            document.getElementById('c-grav').value = state.grav;
+            document.getElementById('v-grav').innerText = state.grav;
+            document.getElementById('c-damp').value = state.damp;
+            document.getElementById('v-damp').innerText = state.damp;
+            
+            ['chk-files','chk-funcs','chk-classes','chk-imports','chk-calls'].forEach(id => {
+                const key = chkMap[id];
+                if (key) document.getElementById(id).checked = state[key];
+            });
+
+            document.querySelectorAll('.lm-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`lm-${state.labelMode}`).classList.add('active');
+        } catch(e) {}
+    }
+}
+
+function applyForces(reheat = true) {
     try {
         const sim = Graph.d3Force;
+        
+        // 1. Charge (Repulsion)
+        let charge = sim('charge');
+        if (!charge) {
+            charge = d3.forceManyBody().distanceMax(800);
+            sim('charge', charge);
+        }
+        charge.strength(state.charge);
 
-        const charge = sim('charge');
-        if (charge) charge.strength(state.charge).distanceMax(500);
-
-        const link = sim('link');
-        if (link) {
-            link.distance(e => {
-                const baseD = state.dist;
-                return baseD / (e._w || 1);
-            }).strength(e => {
-                if (e.relation_type === 'RootLink') return 0.8;
-                if (e.relation_type === 'ServiceCall') return 0.5;
-                return 0.3;
-            }).iterations(3);
+        // 2. Center (Stability)
+        let center = sim('center');
+        if (!center) {
+            center = d3.forceCenter(0, 0);
+            sim('center', center);
         }
 
-        sim('x', d3.forceX(0).strength(state.grav));
-        sim('y', d3.forceY(0).strength(state.grav));
+        // 3. Link (Connections)
+        let link = sim('link');
+        if (link) {
+            link.distance(e => state.dist / (e._w || 1))
+                .strength(e => {
+                    if (e.relation_type === 'RootLink') return 0.6;
+                    if (e.relation_type === 'ServiceCall') return 0.4;
+                    return 0.1;
+                });
+        }
 
-        sim('collide', d3.forceCollide().radius(n => {
-            if (n.kind === 'Root') return 20;
-            if (n.kind === 'Service') return 14;
-            if (n.kind === 'File' || n.kind === 'Module') return 8;
-            return 4;
-        }).strength(0.6).iterations(2));
+        // 4. Gravity (X/Y Centering)
+        let fX = sim('x'), fY = sim('y');
+        if (!fX) {
+            sim('x', d3.forceX(0));
+            sim('y', d3.forceY(0));
+            fX = sim('x'); fY = sim('y');
+        }
+        fX.strength(state.grav * 0.4);
+        fY.strength(state.grav * 0.4);
 
-        Graph.d3VelocityDecay(state.damp);
-        Graph.d3AlphaDecay(0.015);
-        Graph.d3Alpha(1).d3ReheatSimulation();
-    } catch (e) { console.error("Physics Error:", e); }
+        // 5. Collision
+        let collide = sim('collide');
+        if (!collide) {
+            sim('collide', d3.forceCollide().radius(n => nodeRadius(n, state.zoom) * 2).strength(0.3));
+        } else {
+            collide.radius(n => nodeRadius(n, state.zoom) * 2);
+        }
+
+        // Velocity Decay (Damping)
+        const decay = 1 - state.damp; 
+        Graph.d3VelocityDecay(Math.max(0.01, Math.min(0.99, decay)));
+        
+        if (reheat) {
+            // Set alphaTarget to keep it "liquid" during interaction
+            Graph.d3AlphaTarget(0.3).d3Alpha(1).d3ReheatSimulation();
+        }
+    } catch (e) { 
+        console.error("Physics Error:", e);
+    }
 }
+
 
 
 function buildGraphData(replot = false) {
@@ -786,7 +853,16 @@ function showInfo(n) {
         const v = parseFloat(e.target.value);
         state[key] = v;
         document.getElementById(valId).innerText = v;
-        applyForces();
+        applyForces(true);
+    });
+    // Set alphaTarget to 0 when done dragging to allow cool-down
+    el.addEventListener('pointerup', () => {
+        Graph.d3AlphaTarget(0);
+        saveSettings();
+    });
+    el.addEventListener('change', () => {
+        Graph.d3AlphaTarget(0);
+        saveSettings();
     });
 });
 
@@ -801,6 +877,7 @@ const chkMap = {
 Object.entries(chkMap).forEach(([id, key]) => {
     document.getElementById(id).addEventListener('change', e => {
         state[key] = e.target.checked;
+        saveSettings();
         if (state.replaying) return;
         softRefresh();
     });
@@ -811,7 +888,8 @@ Object.entries(chkMap).forEach(([id, key]) => {
         state.labelMode = id.replace('lm-','');
         document.querySelectorAll('.lm-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(id).classList.add('active');
-        Graph.d3Alpha(0.01).d3ReheatSimulation(); // Force quick redraw
+        saveSettings();
+        Graph.d3Alpha(0.01).d3ReheatSimulation(); 
     });
 });
 
@@ -838,6 +916,7 @@ document.getElementById('search-in').addEventListener('change', e => {
     }
 });
 
+loadSettings();
 setTimeout(playReplay, 150);
 </script>
 </body>
