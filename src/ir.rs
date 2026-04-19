@@ -10,7 +10,7 @@ pub enum NodeKind {
     Variable,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum RelationType {
     Imports,
     Calls,

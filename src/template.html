@@ -30,12 +30,7 @@ body {
     padding: 24px;
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
     z-index: 10;
-    max-width: 320px;
-    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-.ui-overlay:hover {
-    transform: translateY(-4px);
-    border: 1px solid rgba(102, 252, 241, 0.3);
+    width: 280px;
 }
 .ui-overlay h1 {
     margin: 0 0 12px 0;
@@ -54,15 +49,11 @@ body {
 .stat-box {
     display: flex;
     justify-content: space-between;
-    padding: 14px;
+    padding: 10px 14px;
     background: rgba(11, 12, 16, 0.6);
     border-radius: 10px;
     margin-bottom: 10px;
     border: 1px solid rgba(255, 255, 255, 0.05);
-    transition: background 0.3s ease;
-}
-.stat-box:hover {
-    background: rgba(69, 162, 158, 0.1);
 }
 .stat-box span:first-child {
     font-weight: 500;
@@ -73,12 +64,45 @@ body {
     color: #fff;
     text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
 }
+.control-group {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.control-item {
+    margin-bottom: 12px;
+}
+.control-item label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    margin-bottom: 6px;
+    color: #c5c6c7;
+}
+.control-item input[type="range"] {
+    width: 100%;
+    cursor: pointer;
+    accent-color: #66fcf1;
+}
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: #c5c6c7;
+    cursor: pointer;
+    margin-bottom: 16px;
+}
+.checkbox-item input {
+    accent-color: #66fcf1;
+}
 </style>
 </head>
 <body>
 <div class="ui-overlay">
     <h1>kgraph</h1>
-    <p>Interactive knowledge graph mapping project structural dependencies.</p>
+    <p>Physics-based dependency mapped graph with dynamic zoom filtering.</p>
+    
     <div class="stat-box">
         <span>Nodes</span>
         <span id="node-count">0</span>
@@ -87,18 +111,63 @@ body {
         <span>Edges</span>
         <span id="edge-count">0</span>
     </div>
+
+    <div class="control-group">
+        <label class="checkbox-item">
+            <input type="checkbox" id="ctrl-functions" checked>
+            Show Functions (Closer Zoom)
+        </label>
+        
+        <div class="control-item">
+            <label><span>Repel Charge</span> <span id="val-charge">-140</span></label>
+            <input type="range" id="ctrl-charge" min="-600" max="-10" value="-140">
+        </div>
+        <div class="control-item">
+            <label><span>Link Distance</span> <span id="val-distance">40</span></label>
+            <input type="range" id="ctrl-distance" min="10" max="200" value="40">
+        </div>
+        <div class="control-item">
+            <label><span>Center Gravity</span> <span id="val-gravity">0.05</span></label>
+            <input type="range" id="ctrl-gravity" min="0" max="1" step="0.01" value="0.05">
+        </div>
+    </div>
 </div>
 <div id="graph"></div>
+
 <script>
-const data = {{GRAPH_DATA_PLACEHOLDER}};
+const rawData = {{GRAPH_DATA_PLACEHOLDER}};
 
-document.getElementById('node-count').innerText = data.nodes.length;
-document.getElementById('edge-count').innerText = data.edges.length;
-
-const gData = {
-    nodes: data.nodes.map(n => ({ id: n.id, name: n.name, val: n.kind === 'File' ? 8 : 4, group: n.language })),
-    links: data.edges.map(e => ({ source: e.from_node_id, target: e.to_node_id }))
+let state = {
+    charge: -140,
+    distance: 40,
+    gravity: 0.05,
+    showFunctions: true,
+    currentScale: 1.0,
+    autoHideThreshold: 0.8
 };
+
+const domCharge = document.getElementById('ctrl-charge');
+const domDistance = document.getElementById('ctrl-distance');
+const domGravity = document.getElementById('ctrl-gravity');
+const domFunctions = document.getElementById('ctrl-functions');
+const valCharge = document.getElementById('val-charge');
+const valDistance = document.getElementById('val-distance');
+const valGravity = document.getElementById('val-gravity');
+const nodeCount = document.getElementById('node-count');
+const edgeCount = document.getElementById('edge-count');
+
+function computeData() {
+    const renderFuncs = state.showFunctions && state.currentScale > state.autoHideThreshold;
+    const finalNodes = rawData.nodes.filter(n => {
+        if (!renderFuncs && n.kind === 'Function') return false;
+        return true;
+    });
+    
+    const validIds = new Set(finalNodes.map(n => n.id));
+    const finalEdges = rawData.edges.filter(e => validIds.has(e.from_node_id) && validIds.has(e.to_node_id));
+    
+    return { nodes: finalNodes, links: finalEdges };
+}
 
 const colorMap = {
     'rust': '#dea584',
@@ -109,20 +178,33 @@ const colorMap = {
     'java': '#b07219'
 };
 
+const processedData = computeData();
+nodeCount.innerText = processedData.nodes.length;
+edgeCount.innerText = processedData.links.length;
+
+const initialGData = {
+    nodes: processedData.nodes.map(n => ({ id: n.id, name: n.name, val: n.kind === 'File' ? 9 : 3, group: n.language })),
+    links: processedData.links.map(e => ({ source: e.from_node_id, target: e.to_node_id }))
+};
+
 const Graph = ForceGraph()(document.getElementById('graph'))
-    .graphData(gData)
+    .graphData(initialGData)
     .nodeColor(n => colorMap[n.group] || '#66fcf1')
     .nodeRelSize(5)
     .nodeResolution(18)
-    .linkWidth(1.2)
-    .linkColor(() => 'rgba(69, 162, 158, 0.35)')
+    .linkWidth(1.5)
+    .linkColor(() => 'rgba(102, 252, 241, 0.45)')
     .linkDirectionalParticles(2)
-    .linkDirectionalParticleWidth(2)
+    .linkDirectionalParticleWidth(2.5)
     .linkDirectionalParticleSpeed(0.005)
-    .d3Force('charge', d3.forceManyBody().strength(-120))
+    .d3Force('charge', d3.forceManyBody().strength(state.charge))
+    .d3Force('link', d3.forceLink().distance(state.distance))
+    .d3Force('center', d3.forceCenter())
+    .d3Force('gravity', d3.forceX().strength(state.gravity))
+    .d3Force('gravityY', d3.forceY().strength(state.gravity))
     .nodeCanvasObject((node, ctx, globalScale) => {
         const label = node.name;
-        const fontSize = 14 / globalScale;
+        const fontSize = (node.val === 9 ? 16 : 12) / globalScale;
         ctx.font = `500 ${fontSize}px Inter, sans-serif`;
         
         ctx.fillStyle = node.color;
@@ -130,7 +212,7 @@ const Graph = ForceGraph()(document.getElementById('graph'))
         ctx.arc(node.x, node.y, node.val, 0, 2 * Math.PI, false);
         ctx.fill();
 
-        if (globalScale > 1.5) {
+        if (globalScale > Math.max(0.5, state.autoHideThreshold / 2)) {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
@@ -144,7 +226,53 @@ const Graph = ForceGraph()(document.getElementById('graph'))
     .onNodeClick(node => {
         Graph.centerAt(node.x, node.y, 1000);
         Graph.zoom(4, 2000);
+    })
+    .onZoom(e => {
+        state.currentScale = e.k;
+        refreshGraphData();
     });
+
+function refreshGraphData() {
+    const updated = computeData();
+    nodeCount.innerText = updated.nodes.length;
+    edgeCount.innerText = updated.links.length;
+    
+    Graph.graphData({
+        nodes: updated.nodes.map(n => ({ id: n.id, name: n.name, val: n.kind === 'File' ? 9 : 3, group: n.language })),
+        links: updated.links.map(e => ({ source: e.from_node_id, target: e.to_node_id }))
+    });
+}
+
+function updateForces() {
+    Graph.d3Force('charge').strength(state.charge);
+    Graph.d3Force('link').distance(state.distance);
+    Graph.d3Force('gravity').strength(state.gravity);
+    Graph.d3Force('gravityY').strength(state.gravity);
+    Graph.d3ReheatSimulation();
+}
+
+domCharge.addEventListener('input', e => {
+    state.charge = parseInt(e.target.value);
+    valCharge.innerText = state.charge;
+    updateForces();
+});
+
+domDistance.addEventListener('input', e => {
+    state.distance = parseInt(e.target.value);
+    valDistance.innerText = state.distance;
+    updateForces();
+});
+
+domGravity.addEventListener('input', e => {
+    state.gravity = parseFloat(e.target.value);
+    valGravity.innerText = state.gravity;
+    updateForces();
+});
+
+domFunctions.addEventListener('change', e => {
+    state.showFunctions = e.target.checked;
+    refreshGraphData();
+});
 </script>
 </body>
 </html>
