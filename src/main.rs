@@ -25,32 +25,32 @@ fn main() {
             
             let js_parser = GenericParser::new(
                 tree_sitter_javascript::language(),
-                "(call_expression function: (identifier) @call_name)",
+                "[(import_statement) @import (call_expression function: (identifier) @call) (member_expression property: (property_identifier) @call)]",
                 "javascript",
             );
             let ts_parser = GenericParser::new(
                 tree_sitter_typescript::language_typescript(),
-                "(call_expression function: (identifier) @call_name)",
+                "[(import_statement) @import (call_expression function: (identifier) @call) (member_expression property: (property_identifier) @call)]",
                 "typescript",
             );
             let py_parser = GenericParser::new(
                 tree_sitter_python::language(),
-                "(call function: (identifier) @call_name)",
+                "[(import_statement) @import (import_from_statement) @import (call function: (identifier) @call) (call function: (attribute attribute: (identifier) @call))] ",
                 "python",
             );
             let java_parser = GenericParser::new(
                 tree_sitter_java::language(),
-                "(method_invocation name: (identifier) @call_name)",
+                "[(import_declaration) @import (method_invocation name: (identifier) @call)]",
                 "java",
             );
             let go_parser = GenericParser::new(
                 tree_sitter_go::language(),
-                "(call_expression function: (identifier) @call_name)",
+                "[(import_declaration) @import (call_expression function: (identifier) @call) (call_expression function: (selector_expression field: (field_identifier) @call))]",
                 "go",
             );
             let rust_parser = GenericParser::new(
                 tree_sitter_rust::language(),
-                "[(mod_item name: (identifier) @n) (call_expression function: (identifier) @n) (call_expression function: (field_expression field: (field_identifier) @n)) (macro_invocation macro: (identifier) @n) (use_declaration argument: (scoped_identifier name: (identifier) @n))]",
+                "[(mod_item name: (identifier) @import) (call_expression function: (identifier) @call) (call_expression function: (field_expression field: (field_identifier) @call)) (macro_invocation macro: (identifier) @call) (use_declaration argument: (scoped_identifier name: (identifier) @import))]",
                 "rust",
             );
 

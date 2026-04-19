@@ -51,12 +51,23 @@ impl CodeParser for GenericParser {
             
             for m in matches {
                 for capture in m.captures {
-                    if let Ok(call_name) = capture.node.utf8_text(content.as_bytes()) {
-                        let call_id = format!("{}::{}::{}", self.lang_name, file_name, call_name);
+                    if let Ok(text) = capture.node.utf8_text(content.as_bytes()) {
+                        let name = text.trim();
+                        if name.is_empty() { continue; }
+                        
+                        let tag = query.capture_names()[capture.index as usize];
+                        
+                        let (kind, relation) = if tag == "import" {
+                            (NodeKind::Module, RelationType::Imports)
+                        } else {
+                            (NodeKind::Function, RelationType::Calls)
+                        };
+
+                        let call_id = format!("{}::{}::{}", self.lang_name, file_name, name);
                         nodes.push(Node {
                             id: call_id.clone(),
-                            kind: NodeKind::Function,
-                            name: call_name.to_string(),
+                            kind,
+                            name: name.to_string(),
                             language: self.lang_name.to_string(),
                             file_path: file_name.clone(),
                             start_line: capture.node.start_position().row,
@@ -65,7 +76,7 @@ impl CodeParser for GenericParser {
                         edges.push(Edge {
                             from_node_id: file_id.clone(),
                             to_node_id: call_id,
-                            relation_type: RelationType::Calls,
+                            relation_type: relation,
                         });
                     }
                 }

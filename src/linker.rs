@@ -13,10 +13,33 @@ impl Linker {
         let mut final_nodes = Vec::new();
         let mut id_map = HashMap::new();
 
+        let mut file_index = HashMap::new();
+        for node in &graph.nodes {
+            if node.kind == NodeKind::File {
+                let path = std::path::Path::new(&node.file_path);
+                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                    file_index.insert(stem.to_string(), node.id.clone());
+                }
+            }
+        }
+
         for node in &graph.nodes {
             match node.kind {
                 NodeKind::File => {
                     final_nodes.push(node.clone());
+                }
+                NodeKind::Module => {
+                    // Directly wire the abstract module to physical file target if resolved
+                    if let Some(file_id) = file_index.get(&node.name) {
+                        id_map.insert(node.id.clone(), file_id.clone());
+                    } else {
+                        if let Some(existing_id) = unique_nodes.get(&node.name) {
+                            id_map.insert(node.id.clone(), existing_id.clone());
+                        } else {
+                            unique_nodes.insert(node.name.clone(), node.id.clone());
+                            final_nodes.push(node.clone());
+                        }
+                    }
                 }
                 _ => {
                     if let Some(existing_id) = unique_nodes.get(&node.name) {
