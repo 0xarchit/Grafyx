@@ -1,923 +1,1034 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Grafyx</title>
-<script src="https://unpkg.com/d3@7.8.5/dist/d3.min.js"></script>
-<script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { width: 100%; height: 100%; overflow: hidden; background: #0f1117; font-family: 'Inter', sans-serif; color: #c9ccd1; }
-#graph-container { position: fixed; inset: 0; }
-#graph-container canvas { display: block; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grafyx</title>
+    <script src="https://unpkg.com/d3@7.8.5/dist/d3.min.js"></script>
+    <script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
-.panel {
-    position: fixed;
-    background: rgba(15,17,23,0.88);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 10px;
-    padding: 16px;
-    z-index: 20;
-    transition: opacity .2s;
-}
-.panel::-webkit-scrollbar { width: 4px; }
-.panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-#panel-left {
-    top: 16px; left: 16px;
-    width: 240px;
-    max-height: calc(100vh - 32px);
-    overflow-y: auto;
-}
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #0f1117;
+            font-family: 'Inter', sans-serif;
+            color: #c9ccd1;
+        }
 
-#panel-right {
-    top: 16px; right: 16px;
-    width: 260px;
-    max-height: calc(100vh - 32px);
-    overflow-y: auto;
-}
+        #graph-container {
+            position: fixed;
+            inset: 0;
+        }
 
-.plogo {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #eee;
-    letter-spacing: -0.02em;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.plogo span { font-size: .7rem; color: #555; font-weight: 400; }
+        #graph-container canvas {
+            display: block;
+        }
 
-.stat-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 8px;
-    border-radius: 6px;
-    background: rgba(255,255,255,0.03);
-    margin-bottom: 4px;
-    font-size: 0.72rem;
-    color: #777;
-}
-.stat-row strong { color: #ccc; font-weight: 500; }
+        .panel {
+            position: fixed;
+            background: rgba(15, 17, 23, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 10px;
+            padding: 16px;
+            z-index: 20;
+            transition: opacity .2s;
+        }
 
-.section-title {
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: .1em;
-    color: #444;
-    margin: 14px 0 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-}
+        .panel::-webkit-scrollbar {
+            width: 4px;
+        }
 
-.ctrl-row {
-    margin-bottom: 10px;
-}
-.ctrl-label {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.7rem;
-    color: #6a6e78;
-    margin-bottom: 4px;
-}
-.ctrl-label span:last-child { color: #aaa; }
-input[type="range"] {
-    width: 100%;
-    height: 2px;
-    cursor: pointer;
-    accent-color: #7c90db;
-    background: rgba(255,255,255,0.06);
-    border-radius: 2px;
-    outline: none;
-    appearance: none;
-    -webkit-appearance: none;
-}
-input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    background: #7c90db;
-    border: 2px solid #0f1117;
-    cursor: pointer;
-}
+        .panel::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 4px;
+        }
 
-.chk-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.72rem;
-    color: #666;
-    cursor: pointer;
-    padding: 3px 0;
-    transition: color .15s;
-}
-.chk-row:hover { color: #999; }
-.chk-row input[type="checkbox"] {
-    width: 12px; height: 12px;
-    accent-color: #7c90db;
-    cursor: pointer;
-}
+        #panel-left {
+            top: 16px;
+            left: 16px;
+            width: 240px;
+            max-height: calc(100vh - 32px);
+            overflow-y: auto;
+        }
 
-.btn {
-    width: 100%;
-    padding: 7px 10px;
-    margin-top: 6px;
-    background: rgba(124,144,219,0.1);
-    color: #7c90db;
-    border: 1px solid rgba(124,144,219,0.2);
-    border-radius: 6px;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 0.72rem;
-    font-weight: 500;
-    transition: background .15s, border-color .15s;
-    text-align: center;
-}
-.btn:hover { background: rgba(124,144,219,0.18); border-color: rgba(124,144,219,0.35); }
-.btn + .btn { margin-top: 4px; }
+        #panel-right {
+            top: 16px;
+            right: 16px;
+            width: 260px;
+            max-height: calc(100vh - 32px);
+            overflow-y: auto;
+        }
 
-.search-wrap { position: relative; margin-bottom: 10px; }
-.search-wrap input[type="text"] {
-    width: 100%;
-    padding: 7px 10px 7px 28px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 6px;
-    color: #ccc;
-    font-family: inherit;
-    font-size: 0.78rem;
-    outline: none;
-    transition: border-color .15s;
-}
-.search-wrap input:focus { border-color: rgba(124,144,219,0.5); }
-.search-wrap .search-icon {
-    position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
-    font-size: .8rem; color: #444; pointer-events: none;
-}
+        .plogo {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #eee;
+            letter-spacing: -0.02em;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
 
-#node-info {
-    display: none;
-    margin-top: 12px;
-    padding: 10px;
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 8px;
-    background: rgba(255,255,255,0.02);
-}
-.info-name {
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: #e0e0e0;
-    word-break: break-all;
-    margin-bottom: 6px;
-}
-.info-badge {
-    display: inline-block;
-    padding: 1px 7px;
-    border-radius: 10px;
-    font-size: 0.62rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    margin-right: 4px;
-    margin-bottom: 6px;
-}
-.info-row {
-    font-size: 0.68rem;
-    color: #555;
-    margin-bottom: 3px;
-    word-break: break-all;
-}
-.info-row strong { color: #777; }
+        .plogo span {
+            font-size: .7rem;
+            color: #555;
+            font-weight: 400;
+        }
 
-#legend { margin-top: 10px; }
-.legend-item {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 0.68rem; color: #555; margin-bottom: 5px;
-}
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 8px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.03);
+            margin-bottom: 4px;
+            font-size: 0.72rem;
+            color: #777;
+        }
 
-.label-mode-group {
-    display: flex;
-    gap: 4px;
-    margin-top: 6px;
-    margin-bottom: 2px;
-}
-.lm-btn {
-    flex: 1;
-    padding: 4px 0;
-    font-size: 0.64rem;
-    font-weight: 500;
-    text-align: center;
-    border-radius: 5px;
-    cursor: pointer;
-    border: 1px solid rgba(255,255,255,0.08);
-    background: rgba(255,255,255,0.03);
-    color: #555;
-    transition: background .15s, color .15s, border-color .15s;
-    font-family: inherit;
-}
-.lm-btn.active {
-    background: rgba(124,144,219,0.15);
-    color: #7c90db;
-    border-color: rgba(124,144,219,0.3);
-}
-.legend-dot {
-    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-}
-</style>
+        .stat-row strong {
+            color: #ccc;
+            font-weight: 500;
+        }
+
+        .section-title {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: .1em;
+            color: #444;
+            margin: 14px 0 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .ctrl-row {
+            margin-bottom: 10px;
+        }
+
+        .ctrl-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: #6a6e78;
+            margin-bottom: 4px;
+        }
+
+        .ctrl-label span:last-child {
+            color: #aaa;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 2px;
+            cursor: pointer;
+            accent-color: #7c90db;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 2px;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #7c90db;
+            border: 2px solid #0f1117;
+            cursor: pointer;
+        }
+
+        .chk-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.72rem;
+            color: #666;
+            cursor: pointer;
+            padding: 3px 0;
+            transition: color .15s;
+        }
+
+        .chk-row:hover {
+            color: #999;
+        }
+
+        .chk-row input[type="checkbox"] {
+            width: 12px;
+            height: 12px;
+            accent-color: #7c90db;
+            cursor: pointer;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 7px 10px;
+            margin-top: 6px;
+            background: rgba(124, 144, 219, 0.1);
+            color: #7c90db;
+            border: 1px solid rgba(124, 144, 219, 0.2);
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.72rem;
+            font-weight: 500;
+            transition: background .15s, border-color .15s;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background: rgba(124, 144, 219, 0.18);
+            border-color: rgba(124, 144, 219, 0.35);
+        }
+
+        .btn+.btn {
+            margin-top: 4px;
+        }
+
+        .search-wrap {
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        .search-wrap input[type="text"] {
+            width: 100%;
+            padding: 7px 10px 7px 28px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            color: #ccc;
+            font-family: inherit;
+            font-size: 0.78rem;
+            outline: none;
+            transition: border-color .15s;
+        }
+
+        .search-wrap input:focus {
+            border-color: rgba(124, 144, 219, 0.5);
+        }
+
+        .search-wrap .search-icon {
+            position: absolute;
+            left: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: .8rem;
+            color: #444;
+            pointer-events: none;
+        }
+
+        #node-info {
+            display: none;
+            margin-top: 12px;
+            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .info-name {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #e0e0e0;
+            word-break: break-all;
+            margin-bottom: 6px;
+        }
+
+        .info-badge {
+            display: inline-block;
+            padding: 1px 7px;
+            border-radius: 10px;
+            font-size: 0.62rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            margin-right: 4px;
+            margin-bottom: 6px;
+        }
+
+        .info-row {
+            font-size: 0.68rem;
+            color: #555;
+            margin-bottom: 3px;
+            word-break: break-all;
+        }
+
+        .info-row strong {
+            color: #777;
+        }
+
+        #legend {
+            margin-top: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.68rem;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        .label-mode-group {
+            display: flex;
+            gap: 4px;
+            margin-top: 6px;
+            margin-bottom: 2px;
+        }
+
+        .lm-btn {
+            flex: 1;
+            padding: 4px 0;
+            font-size: 0.64rem;
+            font-weight: 500;
+            text-align: center;
+            border-radius: 5px;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.03);
+            color: #555;
+            transition: background .15s, color .15s, border-color .15s;
+            font-family: inherit;
+        }
+
+        .lm-btn.active {
+            background: rgba(124, 144, 219, 0.15);
+            color: #7c90db;
+            border-color: rgba(124, 144, 219, 0.3);
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+    </style>
 </head>
+
 <body>
 
-<div id="graph-container"></div>
+    <div id="graph-container"></div>
 
-<div id="panel-left" class="panel">
-    <div class="plogo">Grafyx <span>Visual Code Intelligence</span></div>
+    <div id="panel-left" class="panel">
+        <div class="plogo">Grafyx <span>Code Knowledge Graph Tools</span></div>
 
-    <div class="stat-row"><span>Nodes</span><strong id="st-nodes">0</strong></div>
-    <div class="stat-row"><span>Edges</span><strong id="st-edges">0</strong></div>
-    <div class="stat-row"><span>Services</span><strong id="st-services">0</strong></div>
+        <div class="stat-row"><span>Nodes</span><strong id="st-nodes">0</strong></div>
+        <div class="stat-row"><span>Edges</span><strong id="st-edges">0</strong></div>
+        <div class="stat-row"><span>Services</span><strong id="st-services">0</strong></div>
 
-    <div class="section-title">Filters</div>
-    <label class="chk-row"><input type="checkbox" id="chk-files" checked> Files</label>
-    <label class="chk-row"><input type="checkbox" id="chk-funcs"> Functions</label>
-    <label class="chk-row"><input type="checkbox" id="chk-classes"> Classes</label>
-    <label class="chk-row"><input type="checkbox" id="chk-imports" checked> Imports</label>
-    <label class="chk-row"><input type="checkbox" id="chk-calls"> Calls</label>
-    <label class="chk-row"><input type="checkbox" id="chk-arrows"> Arrows</label>
+        <div class="section-title">Filters</div>
+        <label class="chk-row"><input type="checkbox" id="chk-files" checked> Files</label>
+        <label class="chk-row"><input type="checkbox" id="chk-funcs"> Functions</label>
+        <label class="chk-row"><input type="checkbox" id="chk-classes"> Classes</label>
+        <label class="chk-row"><input type="checkbox" id="chk-imports" checked> Imports</label>
+        <label class="chk-row"><input type="checkbox" id="chk-calls"> Calls</label>
+        <label class="chk-row"><input type="checkbox" id="chk-arrows"> Arrows</label>
 
-    <div class="section-title">Labels</div>
-    <div class="label-mode-group">
-        <button class="lm-btn" id="lm-off">Off</button>
-        <button class="lm-btn active" id="lm-hover">Hover</button>
-        <button class="lm-btn" id="lm-smart">Smart</button>
-        <button class="lm-btn" id="lm-all">All</button>
-    </div>
-
-
-    <div class="section-title">Physics</div>
-
-    <div class="ctrl-row">
-        <div class="ctrl-label"><span>Repulsion</span><span id="v-charge">-80</span></div>
-        <input type="range" id="c-charge" min="-600" max="-5" value="-80">
-    </div>
-    <div class="ctrl-row">
-        <div class="ctrl-label"><span>Link Distance</span><span id="v-dist">60</span></div>
-        <input type="range" id="c-dist" min="5" max="400" value="60">
-    </div>
-    <div class="ctrl-row">
-        <div class="ctrl-label"><span>Gravity</span><span id="v-grav">0.08</span></div>
-        <input type="range" id="c-grav" min="0" max="1" step="0.01" value="0.08">
-    </div>
-    <div class="ctrl-row">
-        <div class="ctrl-label"><span>Damping</span><span id="v-damp">0.55</span></div>
-        <input type="range" id="c-damp" min="0.01" max="0.99" step="0.01" value="0.55">
-    </div>
-
-    <button class="btn" id="btn-resim">↺ Resimulate</button>
-    <button class="btn" id="btn-replay">▶ Replay</button>
-</div>
-
-<div id="panel-right" class="panel">
-    <div class="section-title">Search</div>
-    <div class="search-wrap">
-        <span class="search-icon">⌕</span>
-        <input type="text" id="search-in" list="search-list" placeholder="file, function, module…">
-        <datalist id="search-list"></datalist>
-    </div>
-
-    <div id="node-info">
-        <div class="info-name" id="ni-name"></div>
-        <div>
-            <span class="info-badge" id="ni-kind"></span>
-            <span class="info-badge" id="ni-lang"></span>
-            <span class="info-badge" id="ni-svc"></span>
+        <div class="section-title">Labels</div>
+        <div class="label-mode-group">
+            <button class="lm-btn" id="lm-off">Off</button>
+            <button class="lm-btn active" id="lm-hover">Hover</button>
+            <button class="lm-btn" id="lm-smart">Smart</button>
+            <button class="lm-btn" id="lm-all">All</button>
         </div>
-        <div class="info-row"><strong>Path:</strong> <span id="ni-path"></span></div>
-        <div class="info-row"><strong>Connections:</strong> <span id="ni-conns"></span></div>
+
+
+        <div class="section-title">Physics</div>
+
+        <div class="ctrl-row">
+            <div class="ctrl-label"><span>Repulsion</span><span id="v-charge">-80</span></div>
+            <input type="range" id="c-charge" min="-600" max="-5" value="-80">
+        </div>
+        <div class="ctrl-row">
+            <div class="ctrl-label"><span>Link Distance</span><span id="v-dist">60</span></div>
+            <input type="range" id="c-dist" min="5" max="400" value="60">
+        </div>
+        <div class="ctrl-row">
+            <div class="ctrl-label"><span>Gravity</span><span id="v-grav">0.08</span></div>
+            <input type="range" id="c-grav" min="0" max="1" step="0.01" value="0.08">
+        </div>
+        <div class="ctrl-row">
+            <div class="ctrl-label"><span>Damping</span><span id="v-damp">0.55</span></div>
+            <input type="range" id="c-damp" min="0.01" max="0.99" step="0.01" value="0.55">
+        </div>
+
+        <button class="btn" id="btn-resim">↺ Resimulate</button>
+        <button class="btn" id="btn-replay">▶ Replay</button>
     </div>
 
-    <div id="legend">
-        <div class="section-title">Legend</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#fff;opacity:.9"></div> Root</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#7c90db"></div> Service</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#dea584"></div> Rust</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#f1e05a"></div> JavaScript</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#3178c6"></div> TypeScript</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#3572A5"></div> Python</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#00ADD8"></div> Go</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#b07219"></div> Java</div>
+    <div id="panel-right" class="panel">
+        <div class="section-title">Search</div>
+        <div class="search-wrap">
+            <span class="search-icon">⌕</span>
+            <input type="text" id="search-in" list="search-list" placeholder="file, function, module…">
+            <datalist id="search-list"></datalist>
+        </div>
+
+        <div id="node-info">
+            <div class="info-name" id="ni-name"></div>
+            <div>
+                <span class="info-badge" id="ni-kind"></span>
+                <span class="info-badge" id="ni-lang"></span>
+                <span class="info-badge" id="ni-svc"></span>
+            </div>
+            <div class="info-row"><strong>Path:</strong> <span id="ni-path"></span></div>
+            <div class="info-row"><strong>Connections:</strong> <span id="ni-conns"></span></div>
+        </div>
+
+        <div id="legend">
+            <div class="section-title">Legend</div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#fff;opacity:.9"></div> Root
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#7c90db"></div> Service
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#dea584"></div> Rust
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#f1e05a"></div> JavaScript
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#3178c6"></div> TypeScript
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#3572A5"></div> Python
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#00ADD8"></div> Go
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#b07219"></div> Java
+            </div>
+        </div>
     </div>
-</div>
 
-<script>
-const RAW = {{GRAPH_DATA_PLACEHOLDER}};
+    <script>
+        const RAW = {{ GRAPH_DATA_PLACEHOLDER }};
 
-const COLORS = {
-    root:       '#ffffff',
-    service:    '#7c90db',
-    rust:       '#dea584',
-    javascript: '#f1e05a',
-    typescript: '#3178c6',
-    python:     '#3572A5',
-    go:         '#00ADD8',
-    java:       '#b07219',
-    default:    '#8890a0'
-};
+        const COLORS = {
+            root: '#ffffff',
+            service: '#7c90db',
+            rust: '#dea584',
+            javascript: '#f1e05a',
+            typescript: '#3178c6',
+            python: '#3572A5',
+            go: '#00ADD8',
+            java: '#b07219',
+            default: '#8890a0'
+        };
 
-const EDGE_COLORS = {
-    RootLink:    'rgba(255,255,255,0.4)',  // Normal White
-    ServiceCall: 'rgba(100,255,180,0.6)',  // Vibrant Green
-    Imports:     'rgba(140,240,150,0.4)',  // Soft Green
-    Calls:       'rgba(220,255,220,0.3)',  // Greenish White
-    default:     'rgba(255,255,255,0.25)' // Normal White
-};
+        const EDGE_COLORS = {
+            RootLink: 'rgba(255,255,255,0.4)',  // Normal White
+            ServiceCall: 'rgba(100,255,180,0.6)',  // Vibrant Green
+            Imports: 'rgba(140,240,150,0.4)',  // Soft Green
+            Calls: 'rgba(220,255,220,0.3)',  // Greenish White
+            default: 'rgba(255,255,255,0.25)' // Normal White
+        };
 
-let state = {
-    charge: -80,
-    dist: 60,
-    grav: 0.08,
-    damp: 0.55,
+        let state = {
+            charge: -80,
+            dist: 60,
+            grav: 0.08,
+            damp: 0.55,
 
-    showFiles: true,
-    showFuncs: false,
-    showClasses: false,
-    showImports: true,
-    showCalls: false,
-    arrows: false,
+            showFiles: true,
+            showFuncs: false,
+            showClasses: false,
+            showImports: true,
+            showCalls: false,
+            arrows: false,
 
-    labelMode: 'hover',
+            labelMode: 'hover',
 
-    zoom: 1,
-    hover: null,
-    focus: null,
-    replaying: false
-};
-
-
-const adjMap = new Map();
-RAW.edges.forEach(e => {
-    const a = edgeId(e, 'from'), b = edgeId(e, 'to');
-    if (!adjMap.has(a)) adjMap.set(a, new Set());
-    if (!adjMap.has(b)) adjMap.set(b, new Set());
-    adjMap.get(a).add(b);
-    adjMap.get(b).add(a);
-});
-function edgeId(e, side) {
-    const v = side === 'from' ? (e.from_node_id || e.source) : (e.to_node_id || e.target);
-    if (!v) return null;
-    if (typeof v === 'object') return v.id || v;
-    return v;
-}
-function neighbors(id) { return adjMap.get(id) || new Set(); }
+            zoom: 1,
+            hover: null,
+            focus: null,
+            replaying: false
+        };
 
 
-const serviceSet = new Set();
-RAW.nodes.forEach(n => { if (n.kind === 'Service') serviceSet.add(n.service); });
-document.getElementById('st-services').innerText = serviceSet.size;
-
-const datalist = document.getElementById('search-list');
-RAW.nodes.forEach(n => {
-    const o = document.createElement('option');
-    o.value = n.name;
-    datalist.appendChild(o);
-});
-
-function nodeColor(n) {
-    if (n.kind === 'Root')    return COLORS.root;
-    if (n.kind === 'Service') return COLORS.service;
-    return COLORS[n.language] || COLORS.default;
-}
-
-function nodeRadius(n, zoom) {
-    let base;
-    switch(n.kind) {
-        case 'Root':     base = 8; break;
-        case 'Service':  base = 6; break;
-        case 'File':
-        case 'Module':   base = 4; break;
-        default:         base = 2.5; break;
-    }
-    return base;
-}
-
-function isVisible(n) {
-    if (n.kind === 'Root' || n.kind === 'Service') return true;
-    const z = state.zoom;
-
-    if (n.kind === 'File' || n.kind === 'Module') {
-        if (!state.showFiles && n.kind === 'File') return false;
-        if (z < 0.1) return false;
-        return true;
-    }
-    if (n.kind === 'Function') {
-        if (!state.showFuncs) return false;
-        if (z < 0.5) return false;
-        return true;
-    }
-    if (n.kind === 'Class') {
-        if (!state.showClasses) return false;
-        if (z < 0.3) return false;
-        return true;
-    }
-    return false;
-}
-
-function computeGraph() {
-    const visNodes = RAW.nodes.filter(isVisible);
-    const visSet = new Set(visNodes.map(n => n.id));
-
-    const visEdges = RAW.edges.filter(e => {
-        const a = edgeId(e, 'from'), b = edgeId(e, 'to');
-        if (!visSet.has(a) || !visSet.has(b)) return false;
-        if (!state.showImports && e.relation_type === 'Imports') return false;
-        if (!state.showCalls && e.relation_type === 'Calls') return false;
-        return true;
-    }).map(e => {
-        const w = { RootLink: 6, ServiceCall: 4, Imports: 2.5, Calls: 1.5 }[e.relation_type] || 1;
-        return { ...e, _w: w };
-    });
-
-    return { nodes: visNodes, edges: visEdges };
-}
-
-const GraphEl = document.getElementById('graph-container');
-
-const Graph = ForceGraph()(GraphEl)
-    .backgroundColor('#0f1117')
-    .graphData({ nodes: [], links: [] })
-    .nodeId('id')
-    .nodeRelSize(1)
-    .nodeVal(n => {
-        if (n.kind === 'Root') return 64;
-        if (n.kind === 'Service') return 36;
-        if (n.kind === 'File' || n.kind === 'Module') return 16;
-        return 6;
-    })
-    .nodeColor(nodeColor)
-    .nodeLabel(() => '')
-    .linkSource('source')
-    .linkTarget('target')
-
-    .linkColor(e => {
-        if (!state.focus && !state.hover) return EDGE_COLORS[e.relation_type] || EDGE_COLORS.default;
-        const active = state.focus || state.hover;
-        const a = e.source.id || e.source, b = e.target.id || e.target;
-        if (a === active.id || b === active.id) return EDGE_COLORS[e.relation_type] || EDGE_COLORS.default;
-        return 'rgba(80,80,80,0.06)';
-    })
-    .linkWidth(e => {
-        const base = e.relation_type === 'RootLink' ? 0.5 :
-                     e.relation_type === 'ServiceCall' ? 1.5 :
-                     e.relation_type === 'Imports' ? 0.8 : 0.5;
-        if (!state.focus && !state.hover) return base;
-        const active = state.focus || state.hover;
-        const a = e.source.id || e.source, b = e.target.id || e.target;
-        return (a === active.id || b === active.id) ? base + 0.8 : base * 0.3;
-    })
-
-    .linkLineDash(e => e.relation_type === 'Calls' ? [2, 2] : null)
-    .linkDirectionalArrowLength(e => state.arrows && e.relation_type !== 'RootLink' ? 3 : 0)
-    .linkDirectionalArrowRelPos(1)
-    .enableNodeDrag(true)
-    .onNodeDrag(() => {
-        Graph.d3Alpha(0.5);
-    })
-    .onNodeDragEnd(n => {
-        n.fx = n.x; n.fy = n.y;
-        setTimeout(() => { n.fx = null; n.fy = null; }, 800);
-    })
-    .onNodeHover(n => {
-        GraphEl.style.cursor = n ? 'pointer' : 'default';
-        state.hover = n;
-    })
-    .onNodeClick(n => {
-        if (state.focus && state.focus.id === n.id) {
-            state.focus = null;
-            document.getElementById('node-info').style.display = 'none';
-        } else {
-            state.focus = n;
-            Graph.centerAt(n.x, n.y, 600).zoom(Math.max(state.zoom, 3), 600);
-            showInfo(n);
+        const adjMap = new Map();
+        RAW.edges.forEach(e => {
+            const a = edgeId(e, 'from'), b = edgeId(e, 'to');
+            if (!adjMap.has(a)) adjMap.set(a, new Set());
+            if (!adjMap.has(b)) adjMap.set(b, new Set());
+            adjMap.get(a).add(b);
+            adjMap.get(b).add(a);
+        });
+        function edgeId(e, side) {
+            const v = side === 'from' ? (e.from_node_id || e.source) : (e.to_node_id || e.target);
+            if (!v) return null;
+            if (typeof v === 'object') return v.id || v;
+            return v;
         }
-    })
-    .onBackgroundClick(() => {
-        state.focus = null;
-        document.getElementById('node-info').style.display = 'none';
-    })
-    .onZoom(ev => {
-        state.zoom = ev.k;
-    })
+        function neighbors(id) { return adjMap.get(id) || new Set(); }
 
-    .nodeCanvasObjectMode(() => 'after')
-    .nodeCanvasObject((n, ctx, gScale) => {
-        const z = gScale;
-        const r = nodeRadius(n, z);
 
-        let alpha = 1;
-        if (state.focus) {
-            const nb = neighbors(state.focus.id);
-            alpha = (n.id === state.focus.id || nb.has(n.id)) ? 1 : 0.08;
+        const serviceSet = new Set();
+        RAW.nodes.forEach(n => { if (n.kind === 'Service') serviceSet.add(n.service); });
+        document.getElementById('st-services').innerText = serviceSet.size;
+
+        const datalist = document.getElementById('search-list');
+        RAW.nodes.forEach(n => {
+            const o = document.createElement('option');
+            o.value = n.name;
+            datalist.appendChild(o);
+        });
+
+        function nodeColor(n) {
+            if (n.kind === 'Root') return COLORS.root;
+            if (n.kind === 'Service') return COLORS.service;
+            return COLORS[n.language] || COLORS.default;
         }
 
-        ctx.globalAlpha = alpha;
-
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
-        ctx.fillStyle = nodeColor(n);
-        ctx.fill();
-
-        if (state.hover && state.hover.id === n.id) {
-            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-            ctx.lineWidth = 1.2 / z;
-            ctx.stroke();
-        }
-        if (state.focus && state.focus.id === n.id) {
-            ctx.strokeStyle = 'rgba(124,144,219,0.9)';
-            ctx.lineWidth = 1.5 / z;
-            ctx.stroke();
+        function nodeRadius(n, zoom) {
+            let base;
+            switch (n.kind) {
+                case 'Root': base = 8; break;
+                case 'Service': base = 6; break;
+                case 'File':
+                case 'Module': base = 4; break;
+                default: base = 2.5; break;
+            }
+            return base;
         }
 
-        const isHovered = state.hover && state.hover.id === n.id;
-        const isFocused = state.focus && state.focus.id === n.id;
-        const isAlwaysLabelled = n.kind === 'Root' || n.kind === 'Service';
+        function isVisible(n) {
+            if (n.kind === 'Root' || n.kind === 'Service') return true;
+            const z = state.zoom;
 
-        let showLabel = false;
-        const lm = state.labelMode;
-        if (lm === 'all') {
-            showLabel = true;
-        } else if (lm === 'off') {
-            showLabel = isHovered || isFocused;
-        } else if (lm === 'hover') {
-            showLabel = isAlwaysLabelled || isHovered || isFocused;
-        } else {
-            showLabel = isAlwaysLabelled ||
+            if (n.kind === 'File' || n.kind === 'Module') {
+                if (!state.showFiles && n.kind === 'File') return false;
+                if (z < 0.1) return false;
+                return true;
+            }
+            if (n.kind === 'Function') {
+                if (!state.showFuncs) return false;
+                if (z < 0.5) return false;
+                return true;
+            }
+            if (n.kind === 'Class') {
+                if (!state.showClasses) return false;
+                if (z < 0.3) return false;
+                return true;
+            }
+            return false;
+        }
+
+        function computeGraph() {
+            const visNodes = RAW.nodes.filter(isVisible);
+            const visSet = new Set(visNodes.map(n => n.id));
+
+            const visEdges = RAW.edges.filter(e => {
+                const a = edgeId(e, 'from'), b = edgeId(e, 'to');
+                if (!visSet.has(a) || !visSet.has(b)) return false;
+                if (!state.showImports && e.relation_type === 'Imports') return false;
+                if (!state.showCalls && e.relation_type === 'Calls') return false;
+                return true;
+            }).map(e => {
+                const w = { RootLink: 6, ServiceCall: 4, Imports: 2.5, Calls: 1.5 }[e.relation_type] || 1;
+                return { ...e, _w: w };
+            });
+
+            return { nodes: visNodes, edges: visEdges };
+        }
+
+        const GraphEl = document.getElementById('graph-container');
+
+        const Graph = ForceGraph()(GraphEl)
+            .backgroundColor('#0f1117')
+            .graphData({ nodes: [], links: [] })
+            .nodeId('id')
+            .nodeRelSize(1)
+            .nodeVal(n => {
+                if (n.kind === 'Root') return 64;
+                if (n.kind === 'Service') return 36;
+                if (n.kind === 'File' || n.kind === 'Module') return 16;
+                return 6;
+            })
+            .nodeColor(nodeColor)
+            .nodeLabel(() => '')
+            .linkSource('source')
+            .linkTarget('target')
+
+            .linkColor(e => {
+                if (!state.focus && !state.hover) return EDGE_COLORS[e.relation_type] || EDGE_COLORS.default;
+                const active = state.focus || state.hover;
+                const a = e.source.id || e.source, b = e.target.id || e.target;
+                if (a === active.id || b === active.id) return EDGE_COLORS[e.relation_type] || EDGE_COLORS.default;
+                return 'rgba(80,80,80,0.06)';
+            })
+            .linkWidth(e => {
+                const base = e.relation_type === 'RootLink' ? 0.5 :
+                    e.relation_type === 'ServiceCall' ? 1.5 :
+                        e.relation_type === 'Imports' ? 0.8 : 0.5;
+                if (!state.focus && !state.hover) return base;
+                const active = state.focus || state.hover;
+                const a = e.source.id || e.source, b = e.target.id || e.target;
+                return (a === active.id || b === active.id) ? base + 0.8 : base * 0.3;
+            })
+
+            .linkLineDash(e => e.relation_type === 'Calls' ? [2, 2] : null)
+            .linkDirectionalArrowLength(e => state.arrows && e.relation_type !== 'RootLink' ? 3 : 0)
+            .linkDirectionalArrowRelPos(1)
+            .enableNodeDrag(true)
+            .onNodeDrag(() => {
+                Graph.d3Alpha(0.5);
+            })
+            .onNodeDragEnd(n => {
+                n.fx = n.x; n.fy = n.y;
+                setTimeout(() => { n.fx = null; n.fy = null; }, 800);
+            })
+            .onNodeHover(n => {
+                GraphEl.style.cursor = n ? 'pointer' : 'default';
+                state.hover = n;
+            })
+            .onNodeClick(n => {
+                if (state.focus && state.focus.id === n.id) {
+                    state.focus = null;
+                    document.getElementById('node-info').style.display = 'none';
+                } else {
+                    state.focus = n;
+                    Graph.centerAt(n.x, n.y, 600).zoom(Math.max(state.zoom, 3), 600);
+                    showInfo(n);
+                }
+            })
+            .onBackgroundClick(() => {
+                state.focus = null;
+                document.getElementById('node-info').style.display = 'none';
+            })
+            .onZoom(ev => {
+                state.zoom = ev.k;
+            })
+
+            .nodeCanvasObjectMode(() => 'after')
+            .nodeCanvasObject((n, ctx, gScale) => {
+                const z = gScale;
+                const r = nodeRadius(n, z);
+
+                let alpha = 1;
+                if (state.focus) {
+                    const nb = neighbors(state.focus.id);
+                    alpha = (n.id === state.focus.id || nb.has(n.id)) ? 1 : 0.08;
+                }
+
+                ctx.globalAlpha = alpha;
+
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+                ctx.fillStyle = nodeColor(n);
+                ctx.fill();
+
+                if (state.hover && state.hover.id === n.id) {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                    ctx.lineWidth = 1.2 / z;
+                    ctx.stroke();
+                }
+                if (state.focus && state.focus.id === n.id) {
+                    ctx.strokeStyle = 'rgba(124,144,219,0.9)';
+                    ctx.lineWidth = 1.5 / z;
+                    ctx.stroke();
+                }
+
+                const isHovered = state.hover && state.hover.id === n.id;
+                const isFocused = state.focus && state.focus.id === n.id;
+                const isAlwaysLabelled = n.kind === 'Root' || n.kind === 'Service';
+
+                let showLabel = false;
+                const lm = state.labelMode;
+                if (lm === 'all') {
+                    showLabel = true;
+                } else if (lm === 'off') {
+                    showLabel = isHovered || isFocused;
+                } else if (lm === 'hover') {
+                    showLabel = isAlwaysLabelled || isHovered || isFocused;
+                } else {
+                    showLabel = isAlwaysLabelled ||
                         (z > 0.3 && (n.kind === 'File' || n.kind === 'Module')) ||
                         (z > 1.2 && n.kind === 'Function') ||
                         isHovered || isFocused;
-        }
+                }
 
 
-        if (showLabel) {
-            const fs = Math.min(Math.max(10 / z, 2), 16);
-            ctx.font = `${n.kind === 'Root' || n.kind === 'Service' ? 600 : 400} ${fs}px Inter, sans-serif`;
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = `rgba(200,202,210,${alpha * 0.85})`;
-            ctx.fillText(n.name, n.x + r + 3 / z, n.y);
-        }
+                if (showLabel) {
+                    const fs = Math.min(Math.max(10 / z, 2), 16);
+                    ctx.font = `${n.kind === 'Root' || n.kind === 'Service' ? 600 : 400} ${fs}px Inter, sans-serif`;
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = `rgba(200,202,210,${alpha * 0.85})`;
+                    ctx.fillText(n.name, n.x + r + 3 / z, n.y);
+                }
 
-        ctx.globalAlpha = 1;
-    });
-
-// Persistence
-function saveSettings() {
-    localStorage.setItem('grafyx-settings', JSON.stringify({
-        charge: state.charge,
-        dist: state.dist,
-        grav: state.grav,
-        damp: state.damp,
-        showFiles: state.showFiles,
-        showFuncs: state.showFuncs,
-        showClasses: state.showClasses,
-        showImports: state.showImports,
-        showCalls: state.showCalls,
-        labelMode: state.labelMode
-    }));
-}
-
-function loadSettings() {
-    const saved = localStorage.getItem('grafyx-settings');
-    if (saved) {
-        try {
-            const parsed = JSON.parse(saved);
-            Object.assign(state, parsed);
-            
-            // Sync UI
-            document.getElementById('c-charge').value = state.charge;
-            document.getElementById('v-charge').innerText = state.charge;
-            document.getElementById('c-dist').value = state.dist;
-            document.getElementById('v-dist').innerText = state.dist;
-            document.getElementById('c-grav').value = state.grav;
-            document.getElementById('v-grav').innerText = state.grav;
-            document.getElementById('c-damp').value = state.damp;
-            document.getElementById('v-damp').innerText = state.damp;
-            
-            ['chk-files','chk-funcs','chk-classes','chk-imports','chk-calls'].forEach(id => {
-                const key = chkMap[id];
-                if (key) document.getElementById(id).checked = state[key];
+                ctx.globalAlpha = 1;
             });
 
-            document.querySelectorAll('.lm-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(`lm-${state.labelMode}`).classList.add('active');
-        } catch(e) {}
-    }
-}
-
-function applyForces(reheat = true) {
-    try {
-        const sim = Graph.d3Force;
-        
-        // 1. Charge (Repulsion)
-        let charge = sim('charge');
-        if (!charge) {
-            charge = d3.forceManyBody().distanceMax(800);
-            sim('charge', charge);
-        }
-        charge.strength(state.charge);
-
-        // 2. Center (Stability)
-        let center = sim('center');
-        if (!center) {
-            center = d3.forceCenter(0, 0);
-            sim('center', center);
+        // Persistence
+        function saveSettings() {
+            localStorage.setItem('grafyx-settings', JSON.stringify({
+                charge: state.charge,
+                dist: state.dist,
+                grav: state.grav,
+                damp: state.damp,
+                showFiles: state.showFiles,
+                showFuncs: state.showFuncs,
+                showClasses: state.showClasses,
+                showImports: state.showImports,
+                showCalls: state.showCalls,
+                labelMode: state.labelMode
+            }));
         }
 
-        // 3. Link (Connections)
-        let link = sim('link');
-        if (link) {
-            link.distance(e => state.dist / (e._w || 1))
-                .strength(e => {
-                    if (e.relation_type === 'RootLink') return 0.6;
-                    if (e.relation_type === 'ServiceCall') return 0.4;
-                    return 0.1;
-                });
-        }
+        function loadSettings() {
+            const saved = localStorage.getItem('grafyx-settings');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    Object.assign(state, parsed);
 
-        // 4. Gravity (X/Y Centering)
-        let fX = sim('x'), fY = sim('y');
-        if (!fX) {
-            sim('x', d3.forceX(0));
-            sim('y', d3.forceY(0));
-            fX = sim('x'); fY = sim('y');
-        }
-        fX.strength(state.grav * 0.4);
-        fY.strength(state.grav * 0.4);
+                    // Sync UI
+                    document.getElementById('c-charge').value = state.charge;
+                    document.getElementById('v-charge').innerText = state.charge;
+                    document.getElementById('c-dist').value = state.dist;
+                    document.getElementById('v-dist').innerText = state.dist;
+                    document.getElementById('c-grav').value = state.grav;
+                    document.getElementById('v-grav').innerText = state.grav;
+                    document.getElementById('c-damp').value = state.damp;
+                    document.getElementById('v-damp').innerText = state.damp;
 
-        // 5. Collision
-        let collide = sim('collide');
-        if (!collide) {
-            sim('collide', d3.forceCollide().radius(n => nodeRadius(n, state.zoom) * 2).strength(0.3));
-        } else {
-            collide.radius(n => nodeRadius(n, state.zoom) * 2);
-        }
+                    ['chk-files', 'chk-funcs', 'chk-classes', 'chk-imports', 'chk-calls'].forEach(id => {
+                        const key = chkMap[id];
+                        if (key) document.getElementById(id).checked = state[key];
+                    });
 
-        // Velocity Decay (Damping)
-        const decay = 1 - state.damp; 
-        Graph.d3VelocityDecay(Math.max(0.01, Math.min(0.99, decay)));
-        
-        if (reheat) {
-            // Set alphaTarget to keep it "liquid" during interaction
-            Graph.d3AlphaTarget(0.3).d3Alpha(1).d3ReheatSimulation();
-        }
-    } catch (e) { 
-        console.error("Physics Error:", e);
-    }
-}
-
-
-
-function buildGraphData(replot = false) {
-    const { nodes, edges } = computeGraph();
-    document.getElementById('st-nodes').innerText = nodes.length;
-    document.getElementById('st-edges').innerText = edges.length;
-
-    const prevMap = new Map();
-    if (!replot) {
-        Graph.graphData().nodes.forEach(pn => prevMap.set(pn.id, pn));
-    }
-
-    const serviceList = nodes.filter(n => n.kind === 'Service');
-    const nSvc = serviceList.length;
-    const serviceAngle = {};
-    serviceList.forEach((s, i) => {
-        serviceAngle[s.service] = (i / nSvc) * 2 * Math.PI;
-    });
-
-    const gNodes = nodes.map((n, i) => {
-        const prev = prevMap.get(n.id);
-        const out = { ...n };
-        if (prev) {
-            out.x = prev.x; out.y = prev.y;
-            out.vx = prev.vx; out.vy = prev.vy;
-        } else {
-            if (n.kind === 'Root') {
-                out.x = 0; out.y = 0;
-            } else if (n.kind === 'Service') {
-                const a = serviceAngle[n.service] || 0;
-                const r = Math.max(200, nSvc * 35);
-                out.x = r * Math.cos(a);
-                out.y = r * Math.sin(a);
-            } else {
-                const sA = serviceAngle[n.service] !== undefined ? serviceAngle[n.service] : (i / nodes.length) * 2 * Math.PI;
-                const jitter = (Math.random() - 0.5) * 1.2;
-                const dist = 280 + Math.random() * 240;
-                out.x = dist * Math.cos(sA + jitter);
-                out.y = dist * Math.sin(sA + jitter);
+                    document.querySelectorAll('.lm-btn').forEach(b => b.classList.remove('active'));
+                    document.getElementById(`lm-${state.labelMode}`).classList.add('active');
+                } catch (e) { }
             }
         }
-        return out;
-    });
 
-    const gLinks = edges.map(e => ({
-        source: edgeId(e, 'from'),
-        target: edgeId(e, 'to'),
-        relation_type: e.relation_type,
-        _w: e._w
-    }));
+        function applyForces(reheat = true) {
+            try {
+                const sim = Graph.d3Force;
 
-    Graph.graphData({ nodes: gNodes, links: gLinks });
-    applyForces();
-}
+                // 1. Charge (Repulsion)
+                let charge = sim('charge');
+                if (!charge) {
+                    charge = d3.forceManyBody().distanceMax(800);
+                    sim('charge', charge);
+                }
+                charge.strength(state.charge);
 
-function softRefresh() {
-    if (state.replaying) return;
-    const { nodes, edges } = computeGraph();
-    document.getElementById('st-nodes').innerText = nodes.length;
-    document.getElementById('st-edges').innerText = edges.length;
+                // 2. Center (Stability)
+                let center = sim('center');
+                if (!center) {
+                    center = d3.forceCenter(0, 0);
+                    sim('center', center);
+                }
 
-    const cur = Graph.graphData();
-    const curMap = new Map(cur.nodes.map(n => [n.id, n]));
-    const curLinkMap = new Map(cur.links.map(l => [`${l.source.id || l.source}|${l.target.id || l.target}|${l.relation_type}`, l]));
+                // 3. Link (Connections)
+                let link = sim('link');
+                if (link) {
+                    link.distance(e => state.dist / (e._w || 1))
+                        .strength(e => {
+                            if (e.relation_type === 'RootLink') return 0.6;
+                            if (e.relation_type === 'ServiceCall') return 0.4;
+                            return 0.1;
+                        });
+                }
 
-    const newNodes = nodes.map(n => {
-        const ex = curMap.get(n.id);
-        return ex ? ex : { ...n, x: (Math.random() - 0.5) * 600, y: (Math.random() - 0.5) * 600 };
-    });
+                // 4. Gravity (X/Y Centering)
+                let fX = sim('x'), fY = sim('y');
+                if (!fX) {
+                    sim('x', d3.forceX(0));
+                    sim('y', d3.forceY(0));
+                    fX = sim('x'); fY = sim('y');
+                }
+                fX.strength(state.grav * 0.4);
+                fY.strength(state.grav * 0.4);
 
-    const newLinks = edges.map(e => ({
-        source: edgeId(e, 'from'),
-        target: edgeId(e, 'to'),
-        relation_type: e.relation_type,
-        _w: e._w
-    }));
+                // 5. Collision
+                let collide = sim('collide');
+                if (!collide) {
+                    sim('collide', d3.forceCollide().radius(n => nodeRadius(n, state.zoom) * 2).strength(0.3));
+                } else {
+                    collide.radius(n => nodeRadius(n, state.zoom) * 2);
+                }
 
-    Graph.graphData({ nodes: newNodes, links: newLinks });
-    applyForces();
-}
+                // Velocity Decay (Damping)
+                const decay = 1 - state.damp;
+                Graph.d3VelocityDecay(Math.max(0.01, Math.min(0.99, decay)));
 
-
-function playReplay() {
-    if (state.replaying) return;
-    state.replaying = true;
-
-    const { nodes, edges } = computeGraph();
-    const roots = nodes.filter(n => n.kind === 'Root');
-    const svcs  = nodes.filter(n => n.kind === 'Service');
-    const files = nodes.filter(n => n.kind === 'File' || n.kind === 'Module');
-    const rest  = nodes.filter(n => !['Root','Service','File','Module'].includes(n.kind));
-    const ordered = [...roots, ...svcs, ...files, ...rest];
-
-    const serviceList = svcs;
-    const nSvc = serviceList.length;
-    const serviceAngle = {};
-    serviceList.forEach((s, i) => {
-        serviceAngle[s.service] = (i / nSvc) * 2 * Math.PI;
-    });
-
-    function initPos(n, i) {
-        if (n.kind === 'Root') return { x: 0, y: 0 };
-        if (n.kind === 'Service') {
-            const a = serviceAngle[n.service] || 0;
-            const r = Math.max(200, nSvc * 35);
-            return { x: r * Math.cos(a), y: r * Math.sin(a) };
-        }
-        const sA = serviceAngle[n.service] !== undefined ? serviceAngle[n.service] : (i / ordered.length) * 2 * Math.PI;
-        const d = 280 + Math.random() * 240;
-        return { x: d * Math.cos(sA + (Math.random()-0.5)*1.2), y: d * Math.sin(sA + (Math.random()-0.5)*1.2) };
-    }
-
-    let idx = 0;
-    const curNodes = [];
-    const activeSet = new Set();
-    Graph.graphData({ nodes: [], links: [] });
-
-    const tick = setInterval(() => {
-        if (!state.replaying) { clearInterval(tick); buildGraphData(false); return; }
-        const isStruct = idx < (roots.length + svcs.length);
-        const batch = isStruct ? 1 : Math.min(12, Math.ceil(ordered.length / 60));
-
-        let added = 0;
-        while (added < batch && idx < ordered.length) {
-            const n = ordered[idx];
-            const pos = initPos(n, idx);
-            curNodes.push({ ...n, ...pos });
-            activeSet.add(n.id);
-            idx++; added++;
+                if (reheat) {
+                    // Set alphaTarget to keep it "liquid" during interaction
+                    Graph.d3AlphaTarget(0.3).d3Alpha(1).d3ReheatSimulation();
+                }
+            } catch (e) {
+                console.error("Physics Error:", e);
+            }
         }
 
-        const curLinks = edges
-            .filter(e => activeSet.has(edgeId(e,'from')) && activeSet.has(edgeId(e,'to')))
-            .map(e => ({ source: edgeId(e,'from'), target: edgeId(e,'to'), relation_type: e.relation_type, _w: e._w }));
 
-        Graph.graphData({ nodes: [...curNodes], links: curLinks });
-        document.getElementById('st-nodes').innerText = curNodes.length;
-        document.getElementById('st-edges').innerText = curLinks.length;
 
-        if (idx === 1) applyForces();
+        function buildGraphData(replot = false) {
+            const { nodes, edges } = computeGraph();
+            document.getElementById('st-nodes').innerText = nodes.length;
+            document.getElementById('st-edges').innerText = edges.length;
 
-        if (idx >= ordered.length) {
-            clearInterval(tick);
+            const prevMap = new Map();
+            if (!replot) {
+                Graph.graphData().nodes.forEach(pn => prevMap.set(pn.id, pn));
+            }
+
+            const serviceList = nodes.filter(n => n.kind === 'Service');
+            const nSvc = serviceList.length;
+            const serviceAngle = {};
+            serviceList.forEach((s, i) => {
+                serviceAngle[s.service] = (i / nSvc) * 2 * Math.PI;
+            });
+
+            const gNodes = nodes.map((n, i) => {
+                const prev = prevMap.get(n.id);
+                const out = { ...n };
+                if (prev) {
+                    out.x = prev.x; out.y = prev.y;
+                    out.vx = prev.vx; out.vy = prev.vy;
+                } else {
+                    if (n.kind === 'Root') {
+                        out.x = 0; out.y = 0;
+                    } else if (n.kind === 'Service') {
+                        const a = serviceAngle[n.service] || 0;
+                        const r = Math.max(200, nSvc * 35);
+                        out.x = r * Math.cos(a);
+                        out.y = r * Math.sin(a);
+                    } else {
+                        const sA = serviceAngle[n.service] !== undefined ? serviceAngle[n.service] : (i / nodes.length) * 2 * Math.PI;
+                        const jitter = (Math.random() - 0.5) * 1.2;
+                        const dist = 280 + Math.random() * 240;
+                        out.x = dist * Math.cos(sA + jitter);
+                        out.y = dist * Math.sin(sA + jitter);
+                    }
+                }
+                return out;
+            });
+
+            const gLinks = edges.map(e => ({
+                source: edgeId(e, 'from'),
+                target: edgeId(e, 'to'),
+                relation_type: e.relation_type,
+                _w: e._w
+            }));
+
+            Graph.graphData({ nodes: gNodes, links: gLinks });
+            applyForces();
+        }
+
+        function softRefresh() {
+            if (state.replaying) return;
+            const { nodes, edges } = computeGraph();
+            document.getElementById('st-nodes').innerText = nodes.length;
+            document.getElementById('st-edges').innerText = edges.length;
+
+            const cur = Graph.graphData();
+            const curMap = new Map(cur.nodes.map(n => [n.id, n]));
+            const curLinkMap = new Map(cur.links.map(l => [`${l.source.id || l.source}|${l.target.id || l.target}|${l.relation_type}`, l]));
+
+            const newNodes = nodes.map(n => {
+                const ex = curMap.get(n.id);
+                return ex ? ex : { ...n, x: (Math.random() - 0.5) * 600, y: (Math.random() - 0.5) * 600 };
+            });
+
+            const newLinks = edges.map(e => ({
+                source: edgeId(e, 'from'),
+                target: edgeId(e, 'to'),
+                relation_type: e.relation_type,
+                _w: e._w
+            }));
+
+            Graph.graphData({ nodes: newNodes, links: newLinks });
+            applyForces();
+        }
+
+
+        function playReplay() {
+            if (state.replaying) return;
+            state.replaying = true;
+
+            const { nodes, edges } = computeGraph();
+            const roots = nodes.filter(n => n.kind === 'Root');
+            const svcs = nodes.filter(n => n.kind === 'Service');
+            const files = nodes.filter(n => n.kind === 'File' || n.kind === 'Module');
+            const rest = nodes.filter(n => !['Root', 'Service', 'File', 'Module'].includes(n.kind));
+            const ordered = [...roots, ...svcs, ...files, ...rest];
+
+            const serviceList = svcs;
+            const nSvc = serviceList.length;
+            const serviceAngle = {};
+            serviceList.forEach((s, i) => {
+                serviceAngle[s.service] = (i / nSvc) * 2 * Math.PI;
+            });
+
+            function initPos(n, i) {
+                if (n.kind === 'Root') return { x: 0, y: 0 };
+                if (n.kind === 'Service') {
+                    const a = serviceAngle[n.service] || 0;
+                    const r = Math.max(200, nSvc * 35);
+                    return { x: r * Math.cos(a), y: r * Math.sin(a) };
+                }
+                const sA = serviceAngle[n.service] !== undefined ? serviceAngle[n.service] : (i / ordered.length) * 2 * Math.PI;
+                const d = 280 + Math.random() * 240;
+                return { x: d * Math.cos(sA + (Math.random() - 0.5) * 1.2), y: d * Math.sin(sA + (Math.random() - 0.5) * 1.2) };
+            }
+
+            let idx = 0;
+            const curNodes = [];
+            const activeSet = new Set();
+            Graph.graphData({ nodes: [], links: [] });
+
+            const tick = setInterval(() => {
+                if (!state.replaying) { clearInterval(tick); buildGraphData(false); return; }
+                const isStruct = idx < (roots.length + svcs.length);
+                const batch = isStruct ? 1 : Math.min(12, Math.ceil(ordered.length / 60));
+
+                let added = 0;
+                while (added < batch && idx < ordered.length) {
+                    const n = ordered[idx];
+                    const pos = initPos(n, idx);
+                    curNodes.push({ ...n, ...pos });
+                    activeSet.add(n.id);
+                    idx++; added++;
+                }
+
+                const curLinks = edges
+                    .filter(e => activeSet.has(edgeId(e, 'from')) && activeSet.has(edgeId(e, 'to')))
+                    .map(e => ({ source: edgeId(e, 'from'), target: edgeId(e, 'to'), relation_type: e.relation_type, _w: e._w }));
+
+                Graph.graphData({ nodes: [...curNodes], links: curLinks });
+                document.getElementById('st-nodes').innerText = curNodes.length;
+                document.getElementById('st-edges').innerText = curLinks.length;
+
+                if (idx === 1) applyForces();
+
+                if (idx >= ordered.length) {
+                    clearInterval(tick);
+                    state.replaying = false;
+                }
+            }, 50);
+        }
+
+        function showInfo(n) {
+            const info = document.getElementById('node-info');
+            document.getElementById('ni-name').innerText = n.name;
+            document.getElementById('ni-kind').innerText = n.kind;
+            document.getElementById('ni-kind').style.cssText = `background:rgba(124,144,219,0.15);color:#7c90db`;
+            document.getElementById('ni-lang').innerText = n.language || '';
+            document.getElementById('ni-lang').style.cssText = `background:rgba(200,200,200,0.08);color:#888`;
+            document.getElementById('ni-svc').innerText = n.service || '';
+            document.getElementById('ni-svc').style.cssText = `background:rgba(200,200,200,0.06);color:#666`;
+            document.getElementById('ni-path').innerText = n.file_path || '';
+            document.getElementById('ni-conns').innerText = neighbors(n.id).size;
+            info.style.display = 'block';
+        }
+
+        // Control bindings
+        [
+            ['c-charge', 'v-charge', 'charge'],
+            ['c-dist', 'v-dist', 'dist'],
+            ['c-grav', 'v-grav', 'grav'],
+            ['c-damp', 'v-damp', 'damp']
+        ].forEach(([elId, valId, key]) => {
+            const el = document.getElementById(elId);
+            el.addEventListener('input', e => {
+                const v = parseFloat(e.target.value);
+                state[key] = v;
+                document.getElementById(valId).innerText = v;
+                applyForces(true);
+            });
+            // Set alphaTarget to 0 when done dragging to allow cool-down
+            el.addEventListener('pointerup', () => {
+                Graph.d3AlphaTarget(0);
+                saveSettings();
+            });
+            el.addEventListener('change', () => {
+                Graph.d3AlphaTarget(0);
+                saveSettings();
+            });
+        });
+
+        const chkMap = {
+            'chk-files': 'showFiles',
+            'chk-funcs': 'showFuncs',
+            'chk-classes': 'showClasses',
+            'chk-imports': 'showImports',
+            'chk-calls': 'showCalls',
+            'chk-arrows': 'arrows'
+        };
+        Object.entries(chkMap).forEach(([id, key]) => {
+            document.getElementById(id).addEventListener('change', e => {
+                state[key] = e.target.checked;
+                saveSettings();
+                if (state.replaying) return;
+                softRefresh();
+            });
+        });
+
+        ['lm-off', 'lm-hover', 'lm-smart', 'lm-all'].forEach(id => {
+            document.getElementById(id).addEventListener('click', () => {
+                state.labelMode = id.replace('lm-', '');
+                document.querySelectorAll('.lm-btn').forEach(b => b.classList.remove('active'));
+                document.getElementById(id).classList.add('active');
+                saveSettings();
+                Graph.d3Alpha(0.01).d3ReheatSimulation();
+            });
+        });
+
+
+        document.getElementById('btn-resim').addEventListener('click', () => {
+
+            buildGraphData(true);
+        });
+
+        document.getElementById('btn-replay').addEventListener('click', () => {
             state.replaying = false;
-        }
-    }, 50);
-}
+            setTimeout(playReplay, 80);
+        });
 
-function showInfo(n) {
-    const info = document.getElementById('node-info');
-    document.getElementById('ni-name').innerText = n.name;
-    document.getElementById('ni-kind').innerText = n.kind;
-    document.getElementById('ni-kind').style.cssText = `background:rgba(124,144,219,0.15);color:#7c90db`;
-    document.getElementById('ni-lang').innerText = n.language || '';
-    document.getElementById('ni-lang').style.cssText = `background:rgba(200,200,200,0.08);color:#888`;
-    document.getElementById('ni-svc').innerText = n.service || '';
-    document.getElementById('ni-svc').style.cssText = `background:rgba(200,200,200,0.06);color:#666`;
-    document.getElementById('ni-path').innerText = n.file_path || '';
-    document.getElementById('ni-conns').innerText = neighbors(n.id).size;
-    info.style.display = 'block';
-}
+        document.getElementById('search-in').addEventListener('change', e => {
+            const q = e.target.value.toLowerCase().trim();
+            const target = RAW.nodes.find(n => n.name.toLowerCase() === q);
+            if (!target) return;
+            const gn = Graph.graphData().nodes.find(n => n.id === target.id);
+            if (gn) {
+                state.focus = gn;
+                Graph.centerAt(gn.x, gn.y, 800).zoom(Math.max(state.zoom, 4), 800);
+                showInfo(gn);
+            }
+        });
 
-// Control bindings
-[
-    ['c-charge','v-charge','charge'],
-    ['c-dist','v-dist','dist'],
-    ['c-grav','v-grav','grav'],
-    ['c-damp','v-damp','damp']
-].forEach(([elId, valId, key]) => {
-    const el = document.getElementById(elId);
-    el.addEventListener('input', e => {
-        const v = parseFloat(e.target.value);
-        state[key] = v;
-        document.getElementById(valId).innerText = v;
-        applyForces(true);
-    });
-    // Set alphaTarget to 0 when done dragging to allow cool-down
-    el.addEventListener('pointerup', () => {
-        Graph.d3AlphaTarget(0);
-        saveSettings();
-    });
-    el.addEventListener('change', () => {
-        Graph.d3AlphaTarget(0);
-        saveSettings();
-    });
-});
-
-const chkMap = {
-    'chk-files':   'showFiles',
-    'chk-funcs':   'showFuncs',
-    'chk-classes': 'showClasses',
-    'chk-imports': 'showImports',
-    'chk-calls':   'showCalls',
-    'chk-arrows':  'arrows'
-};
-Object.entries(chkMap).forEach(([id, key]) => {
-    document.getElementById(id).addEventListener('change', e => {
-        state[key] = e.target.checked;
-        saveSettings();
-        if (state.replaying) return;
-        softRefresh();
-    });
-});
-
-['lm-off','lm-hover','lm-smart','lm-all'].forEach(id => {
-    document.getElementById(id).addEventListener('click', () => {
-        state.labelMode = id.replace('lm-','');
-        document.querySelectorAll('.lm-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
-        saveSettings();
-        Graph.d3Alpha(0.01).d3ReheatSimulation(); 
-    });
-});
-
-
-document.getElementById('btn-resim').addEventListener('click', () => {
-
-    buildGraphData(true);
-});
-
-document.getElementById('btn-replay').addEventListener('click', () => {
-    state.replaying = false;
-    setTimeout(playReplay, 80);
-});
-
-document.getElementById('search-in').addEventListener('change', e => {
-    const q = e.target.value.toLowerCase().trim();
-    const target = RAW.nodes.find(n => n.name.toLowerCase() === q);
-    if (!target) return;
-    const gn = Graph.graphData().nodes.find(n => n.id === target.id);
-    if (gn) {
-        state.focus = gn;
-        Graph.centerAt(gn.x, gn.y, 800).zoom(Math.max(state.zoom, 4), 800);
-        showInfo(gn);
-    }
-});
-
-loadSettings();
-setTimeout(playReplay, 150);
-</script>
+        loadSettings();
+        setTimeout(playReplay, 150);
+    </script>
 </body>
+
 </html>
