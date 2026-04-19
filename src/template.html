@@ -18,66 +18,112 @@ body {
     width: 100vw;
     height: 100vh;
 }
-.ui-overlay {
+
+/* Glassmorphism Panel Base */
+.ui-panel {
     position: absolute;
+    background: rgba(11, 12, 16, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(102, 252, 241, 0.15);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    z-index: 10;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+}
+
+.ui-panel::-webkit-scrollbar {
+    width: 6px;
+}
+.ui-panel::-webkit-scrollbar-thumb {
+    background: rgba(102, 252, 241, 0.3);
+    border-radius: 6px;
+}
+
+/* Left Controls */
+.left-panel {
     top: 24px;
     left: 24px;
-    background: rgba(31, 40, 51, 0.4);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(102, 252, 241, 0.15);
-    border-radius: 16px;
-    padding: 24px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
-    z-index: 10;
     width: 280px;
 }
-.ui-overlay h1 {
-    margin: 0 0 12px 0;
-    font-size: 1.75rem;
+
+/* Right Navigation & Info */
+.right-panel {
+    top: 24px;
+    right: 24px;
+    width: 320px;
+}
+
+.ui-panel h1 {
+    margin: 0 0 8px 0;
+    font-size: 1.5rem;
     font-weight: 700;
     color: #66fcf1;
     letter-spacing: -0.03em;
-    text-shadow: 0 2px 10px rgba(102, 252, 241, 0.3);
 }
-.ui-overlay p {
-    margin: 0 0 20px 0;
+
+.ui-panel h2 {
+    margin: 0 0 16px 0;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #45a29e;
+    border-bottom: 1px solid rgba(102, 252, 241, 0.1);
+    padding-bottom: 6px;
+}
+
+.search-box {
+    margin-bottom: 20px;
+}
+.search-box input {
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #fff;
     font-size: 0.9rem;
-    opacity: 0.85;
-    line-height: 1.6;
+    outline: none;
+    transition: border 0.2s;
+    box-sizing: border-box;
 }
+.search-box input:focus {
+    border-color: #66fcf1;
+}
+
 .stat-box {
     display: flex;
     justify-content: space-between;
-    padding: 10px 14px;
-    background: rgba(11, 12, 16, 0.6);
-    border-radius: 10px;
-    margin-bottom: 10px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    margin-bottom: 8px;
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 .stat-box span:first-child {
-    font-weight: 500;
-    color: #45a29e;
+    font-size: 0.8rem;
+    color: #8c8f94;
 }
 .stat-box span:last-child {
-    font-weight: 700;
+    font-weight: 600;
     color: #fff;
-    text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
 }
+
 .control-group {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: 20px;
 }
 .control-item {
-    margin-bottom: 12px;
+    margin-bottom: 16px;
 }
 .control-item label {
     display: flex;
     justify-content: space-between;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     margin-bottom: 6px;
-    color: #c5c6c7;
+    color: #a0a3a8;
 }
 .control-item input[type="range"] {
     width: 100%;
@@ -87,191 +133,393 @@ body {
 .checkbox-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 0.85rem;
+    gap: 10px;
+    font-size: 0.8rem;
     color: #c5c6c7;
     cursor: pointer;
-    margin-bottom: 16px;
+    margin-bottom: 10px;
 }
 .checkbox-item input {
     accent-color: #66fcf1;
 }
+
+#node-details {
+    padding: 16px;
+    background: rgba(31, 40, 51, 0.6);
+    border-radius: 8px;
+    border: 1px solid rgba(102, 252, 241, 0.2);
+    margin-top: 16px;
+    display: none;
+}
+#node-details h3 {
+    margin: 0 0 10px 0;
+    font-size: 1rem;
+    color: #fff;
+    word-break: break-all;
+}
+#node-details p {
+    margin: 4px 0;
+    font-size: 0.8rem;
+    color: #c5c6c7;
+}
+.tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background: rgba(102, 252, 241, 0.15);
+    color: #66fcf1;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    font-weight: 600;
+}
 </style>
 </head>
 <body>
-<div class="ui-overlay">
+
+<div class="ui-panel left-panel">
     <h1>kgraph</h1>
-    <p>Physics-based dependency mapped graph with dynamic zoom filtering.</p>
     
     <div class="stat-box">
         <span>Nodes</span>
-        <span id="node-count">0</span>
+        <span id="stat-nodes">0</span>
     </div>
     <div class="stat-box">
         <span>Edges</span>
-        <span id="edge-count">0</span>
+        <span id="stat-edges">0</span>
     </div>
 
     <div class="control-group">
-        <label class="checkbox-item">
-            <input type="checkbox" id="ctrl-functions" checked>
-            Show Functions (Closer Zoom)
-        </label>
-        
+        <h2>Appearance Filters</h2>
+        <label class="checkbox-item"><input type="checkbox" id="chk-arrows"> Directional Arrows</label>
+        <label class="checkbox-item"><input type="checkbox" id="chk-funcs" checked> Show Functions</label>
+        <label class="checkbox-item"><input type="checkbox" id="chk-imports" checked> Show Imports</label>
+        <label class="checkbox-item"><input type="checkbox" id="chk-calls" checked> Show Calls</label>
+    </div>
+
+    <div class="control-group">
+        <h2>Physics Engine</h2>
         <div class="control-item">
             <label><span>Repel Charge</span> <span id="val-charge">-140</span></label>
-            <input type="range" id="ctrl-charge" min="-600" max="-10" value="-140">
+            <input type="range" id="ctrl-charge" min="-800" max="-10" value="-140">
         </div>
         <div class="control-item">
             <label><span>Link Distance</span> <span id="val-distance">40</span></label>
-            <input type="range" id="ctrl-distance" min="10" max="200" value="40">
+            <input type="range" id="ctrl-distance" min="10" max="300" value="40">
         </div>
         <div class="control-item">
             <label><span>Center Gravity</span> <span id="val-gravity">0.05</span></label>
             <input type="range" id="ctrl-gravity" min="0" max="1" step="0.01" value="0.05">
         </div>
+        <div class="control-item">
+            <label><span>Damping (Friction)</span> <span id="val-friction">0.8</span></label>
+            <input type="range" id="ctrl-friction" min="0" max="1" step="0.01" value="0.8">
+        </div>
+        <div class="control-item">
+            <label><span>Simulation Speed</span> <span id="val-speed">1.0</span></label>
+            <input type="range" id="ctrl-speed" min="0" max="3" step="0.1" value="1.0">
+        </div>
     </div>
 </div>
+
+<div class="ui-panel right-panel">
+    <h2>Search Engine</h2>
+    <div class="search-box">
+        <input type="text" id="search-input" list="node-datalist" placeholder="Search files, functions, modules...">
+        <datalist id="node-datalist"></datalist>
+    </div>
+
+    <div id="node-details">
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <span class="tag" id="det-kind">File</span>
+            <span class="tag" id="det-lang" style="color:#dea584; background:rgba(222, 165, 132, 0.15)">Rust</span>
+            <span class="tag" id="det-service" style="color:#f1e05a; background:rgba(241, 224, 90, 0.15)">Service</span>
+        </div>
+        <h3 id="det-name">src/main.rs</h3>
+        <p><strong>Path:</strong> <span id="det-path"></span></p>
+        <p><strong>Connections:</strong> <span id="det-conns"></span> edges</p>
+    </div>
+</div>
+
 <div id="graph"></div>
 
 <script>
+// Will be dynamically injected by kgraph
 const rawData = {{GRAPH_DATA_PLACEHOLDER}};
 
+// System State
 let state = {
     charge: -140,
     distance: 40,
     gravity: 0.05,
-    showFunctions: true,
-    currentScale: 1.0,
-    autoHideThreshold: 0.8
+    friction: 0.8,
+    speed: 1.0,
+    
+    showFuncs: true,
+    showImports: true,
+    showCalls: true,
+    arrows: false,
+    
+    scale: 1.0,
+    lodThreshold: 0.8,
+    
+    hoverNode: null,
+    focusedNode: null,
 };
 
-const domCharge = document.getElementById('ctrl-charge');
-const domDistance = document.getElementById('ctrl-distance');
-const domGravity = document.getElementById('ctrl-gravity');
-const domFunctions = document.getElementById('ctrl-functions');
-const valCharge = document.getElementById('val-charge');
-const valDistance = document.getElementById('val-distance');
-const valGravity = document.getElementById('val-gravity');
-const nodeCount = document.getElementById('node-count');
-const edgeCount = document.getElementById('edge-count');
+// Compute heuristic clusters (Services/Folders)
+const serviceMap = {};
+rawData.nodes.forEach(n => {
+    let p = n.file_path.replace(/\\/g, '/');
+    let parts = p.split('/');
+    let service = parts.length > 1 ? parts[1] : 'root';
+    n.service = service;
+    serviceMap[service] = (serviceMap[service] || 0) + 1;
+});
+
+// Build Node Map & Search Index
+const nodeMap = new Map(rawData.nodes.map(n => [n.id, n]));
+const datalist = document.getElementById('node-datalist');
+rawData.nodes.forEach(n => {
+    let option = document.createElement('option');
+    option.value = n.name;
+    datalist.appendChild(option);
+});
+
+// DOM Hookups
+const ids = ['charge', 'distance', 'gravity', 'friction', 'speed'];
+ids.forEach(id => {
+    document.getElementById('ctrl-' + id).addEventListener('input', e => {
+        let v = parseFloat(e.target.value);
+        state[id] = v;
+        document.getElementById('val-' + id).innerText = v;
+        updatePhysics();
+    });
+});
+['funcs', 'imports', 'calls', 'arrows'].forEach(id => {
+    document.getElementById('chk-' + id).addEventListener('change', e => {
+        state[id] = e.target.checked;
+        refreshData();
+    });
+});
+
+// Neighbor Caching mapping
+const linkRelations = new Map();
+rawData.edges.forEach(edge => {
+    let a = typeof edge.from_node_id === 'object' ? edge.from_node_id.id : edge.from_node_id;
+    let b = typeof edge.to_node_id === 'object' ? edge.to_node_id.id : edge.to_node_id;
+    if (!linkRelations.has(a)) linkRelations.set(a, new Set());
+    if (!linkRelations.has(b)) linkRelations.set(b, new Set());
+    linkRelations.get(a).add(b);
+    linkRelations.get(b).add(a);
+});
+
+function getNeighbors(nodeId) {
+    return linkRelations.get(nodeId) || new Set();
+}
 
 function computeData() {
-    const renderFuncs = state.showFunctions && state.currentScale > state.autoHideThreshold;
-    const finalNodes = rawData.nodes.filter(n => {
-        if (!renderFuncs && n.kind === 'Function') return false;
+    // LOD filtering
+    const renderFuncs = state.showFuncs && state.scale > state.lodThreshold;
+    
+    let nodes = rawData.nodes.filter(n => {
+        if (!renderFuncs && n.kind !== 'File' && n.kind !== 'Module') return false;
         return true;
     });
     
-    const validIds = new Set(finalNodes.map(n => n.id));
-    const finalEdges = rawData.edges.filter(e => validIds.has(e.from_node_id) && validIds.has(e.to_node_id));
+    let nset = new Set(nodes.map(n => n.id));
     
-    return { nodes: finalNodes, links: finalEdges };
+    let edges = rawData.edges.filter(e => {
+        let a = typeof e.from_node_id === 'object' ? e.from_node_id.id : e.from_node_id;
+        let b = typeof e.to_node_id === 'object' ? e.to_node_id.id : e.to_node_id;
+        
+        if (!nset.has(a) || !nset.has(b)) return false;
+        if (!state.showImports && e.relation_type === 'Imports') return false;
+        if (!state.showCalls && e.relation_type === 'Calls') return false;
+        
+        return true;
+    });
+
+    return { nodes, edges };
 }
 
-const colorMap = {
-    'rust': '#dea584',
-    'javascript': '#f1e05a',
-    'typescript': '#3178c6',
-    'python': '#3572A5',
-    'go': '#00ADD8',
-    'java': '#b07219'
+const colors = {
+    'rust': '#dea584', 'javascript': '#f1e05a', 'typescript': '#3178c6',
+    'python': '#3572A5', 'go': '#00ADD8', 'java': '#b07219'
 };
 
-const processedData = computeData();
-nodeCount.innerText = processedData.nodes.length;
-edgeCount.innerText = processedData.links.length;
+const d = computeData();
+document.getElementById('stat-nodes').innerText = d.nodes.length;
+document.getElementById('stat-edges').innerText = d.edges.length;
 
-const initialGData = {
-    nodes: processedData.nodes.map(n => ({ id: n.id, name: n.name, val: n.kind === 'File' ? 9 : 3, group: n.language })),
-    links: processedData.links.map(e => ({ source: e.from_node_id, target: e.to_node_id }))
+let gData = {
+    nodes: d.nodes.map(n => ({...n, val: n.kind === 'File' ? 8 : 4})),
+    links: d.edges.map(e => {
+        let a = typeof e.from_node_id === 'object' ? e.from_node_id.id : e.from_node_id;
+        let b = typeof e.to_node_id === 'object' ? e.to_node_id.id : e.to_node_id;
+        return { source: a, target: b, relation_type: e.relation_type };
+    })
 };
 
 const Graph = ForceGraph()(document.getElementById('graph'))
-    .graphData(initialGData)
-    .nodeColor(n => colorMap[n.group] || '#66fcf1')
+    .graphData(gData)
     .nodeRelSize(5)
-    .nodeResolution(18)
-    .linkWidth(1.5)
-    .linkColor(() => 'rgba(102, 252, 241, 0.45)')
-    .linkDirectionalParticles(2)
-    .linkDirectionalParticleWidth(2.5)
-    .linkDirectionalParticleSpeed(0.005)
-    .d3Force('charge', d3.forceManyBody().strength(state.charge))
-    .d3Force('link', d3.forceLink().distance(state.distance))
-    .d3Force('center', d3.forceCenter())
-    .d3Force('gravity', d3.forceX().strength(state.gravity))
-    .d3Force('gravityY', d3.forceY().strength(state.gravity))
+    .nodeId('id')
+    .nodeColor(n => colors[n.language] || '#66fcf1')
+    .linkColor(e => e.relation_type === 'Imports' ? 'rgba(74, 222, 128, 0.6)' : 'rgba(102, 252, 241, 0.4)')
+    .linkWidth(e => {
+        if (!state.focusedNode && !state.hoverNode) return e.relation_type === 'Imports' ? 2 : 1;
+        
+        // Highlight active paths
+        let active = state.focusedNode || state.hoverNode;
+        let a = e.source.id || e.source; let b = e.target.id || e.target;
+        if (active.id === a || active.id === b) return 3;
+        return Math.max(0.2, (e.relation_type === 'Imports' ? 1.5 : 0.5));
+    })
+    .linkLineDash(e => e.relation_type === 'Calls' ? [3, 2] : null)
+    .linkDirectionalArrowLength(e => state.arrows ? 3.5 : 0)
+    .linkDirectionalArrowRelPos(1)
+    // Custom node rendering for Fading, LOD text, and styles
     .nodeCanvasObject((node, ctx, globalScale) => {
+        // Fading Logic
+        let alpha = 1.0;
+        if (state.focusedNode) {
+            let active = state.focusedNode;
+            let neighbors = getNeighbors(active.id);
+            if (node.id !== active.id && !neighbors.has(node.id)) {
+                alpha = 0.15;
+            }
+        }
+
+        ctx.globalAlpha = alpha;
+        
         const label = node.name;
-        const fontSize = (node.val === 9 ? 16 : 12) / globalScale;
+        const fontSize = (node.val === 8 ? 14 : 10) / globalScale;
         ctx.font = `500 ${fontSize}px Inter, sans-serif`;
         
-        ctx.fillStyle = node.color;
+        ctx.fillStyle = colors[node.language] || '#66fcf1';
         ctx.beginPath();
         ctx.arc(node.x, node.y, node.val, 0, 2 * Math.PI, false);
         ctx.fill();
+        
+        // Subtly outline active hover
+        if (state.hoverNode && state.hoverNode.id === node.id) {
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
 
-        if (globalScale > Math.max(0.5, state.autoHideThreshold / 2)) {
+        if (globalScale > Math.max(0.4, state.lodThreshold / 2)) {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-            const textY = node.y + node.val + fontSize + 2;
-            ctx.fillText(label, node.x, textY);
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
+            ctx.fillText(label, node.x, node.y + node.val + fontSize + 2);
         }
+        ctx.globalAlpha = 1.0; // Reset
     })
     .onNodeHover(node => {
         document.getElementById('graph').style.cursor = node ? 'pointer' : null;
+        state.hoverNode = node;
     })
     .onNodeClick(node => {
-        Graph.centerAt(node.x, node.y, 1000);
-        Graph.zoom(4, 2000);
+        // Focus neighbor highlighting
+        if (state.focusedNode && state.focusedNode.id === node.id) {
+            state.focusedNode = null; // Toggle off
+            document.getElementById('node-details').style.display = 'none';
+        } else {
+            state.focusedNode = node;
+            Graph.centerAt(node.x, node.y, 1000);
+            Graph.zoom(4, 2000);
+            
+            // Populate right panel
+            const det = document.getElementById('node-details');
+            document.getElementById('det-kind').innerText = node.kind;
+            document.getElementById('det-lang').innerText = node.language;
+            document.getElementById('det-service').innerText = node.service;
+            document.getElementById('det-name').innerText = node.name;
+            document.getElementById('det-path').innerText = node.file_path;
+            document.getElementById('det-conns').innerText = getNeighbors(node.id).size;
+            det.style.display = 'block';
+        }
+    })
+    .onBackgroundClick(() => {
+        state.focusedNode = null;
+        document.getElementById('node-details').style.display = 'none';
     })
     .onZoom(e => {
-        state.currentScale = e.k;
-        refreshGraphData();
+        state.scale = e.k;
+        refreshData();
     });
 
-function refreshGraphData() {
+// Init physics
+updatePhysics();
+
+function refreshData() {
     const updated = computeData();
-    nodeCount.innerText = updated.nodes.length;
-    edgeCount.innerText = updated.links.length;
+    document.getElementById('stat-nodes').innerText = updated.nodes.length;
+    document.getElementById('stat-edges').innerText = updated.edges.length;
     
-    Graph.graphData({
-        nodes: updated.nodes.map(n => ({ id: n.id, name: n.name, val: n.kind === 'File' ? 9 : 3, group: n.language })),
-        links: updated.links.map(e => ({ source: e.from_node_id, target: e.to_node_id }))
-    });
+    // Merge new graph data carefully to retain physics positions of surviving nodes
+    let g = {
+        nodes: updated.nodes.map(n => {
+            // retain x, y, vx, vy if it existed in the active graph
+            let exist = Graph.graphData().nodes.find(old => old.id === n.id);
+            let payload = {...n, val: n.kind === 'File' ? 8 : 4};
+            if (exist) {
+                payload.x = exist.x; payload.y = exist.y; payload.vx = exist.vx; payload.vy = exist.vy;
+            }
+            return payload;
+        }),
+        links: updated.edges.map(e => {
+            let a = typeof e.from_node_id === 'object' ? e.from_node_id.id : e.from_node_id;
+            let b = typeof e.to_node_id === 'object' ? e.to_node_id.id : e.to_node_id;
+            return { source: a, target: b, relation_type: e.relation_type };
+        })
+    };
+    Graph.graphData(g);
 }
 
-function updateForces() {
-    Graph.d3Force('charge').strength(state.charge);
-    Graph.d3Force('link').distance(state.distance);
-    Graph.d3Force('gravity').strength(state.gravity);
-    Graph.d3Force('gravityY').strength(state.gravity);
+function updatePhysics() {
+    Graph.d3Force('charge', d3.forceManyBody().strength(state.charge))
+         .d3Force('link', d3.forceLink().distance(state.distance).id(d => d.id))
+         .d3Force('center', d3.forceCenter())
+         .d3Force('x', d3.forceX().strength(state.gravity))
+         .d3Force('y', d3.forceY().strength(state.gravity))
+         .d3VelocityDecay(state.friction);
+    
     Graph.d3ReheatSimulation();
 }
 
-domCharge.addEventListener('input', e => {
-    state.charge = parseInt(e.target.value);
-    valCharge.innerText = state.charge;
-    updateForces();
-});
-
-domDistance.addEventListener('input', e => {
-    state.distance = parseInt(e.target.value);
-    valDistance.innerText = state.distance;
-    updateForces();
-});
-
-domGravity.addEventListener('input', e => {
-    state.gravity = parseFloat(e.target.value);
-    valGravity.innerText = state.gravity;
-    updateForces();
-});
-
-domFunctions.addEventListener('change', e => {
-    state.showFunctions = e.target.checked;
-    refreshGraphData();
+// Search Functionality
+document.getElementById('search-input').addEventListener('change', e => {
+    let q = e.target.value.toLowerCase();
+    let target = rawData.nodes.find(n => n.name.toLowerCase() === q);
+    if (!target) return;
+    
+    // Guarantee visible
+    if ((target.kind !== 'File' && target.kind !== 'Module') && !state.showFuncs) {
+        state.showFuncs = true;
+        document.getElementById('chk-funcs').checked = true;
+        refreshData();
+    }
+    
+    state.focusedNode = target;
+    // Find node in Graph's active rendering array with coordinates
+    setTimeout(() => {
+        let activeGraphNode = Graph.graphData().nodes.find(n => n.id === target.id);
+        if (activeGraphNode) {
+            Graph.centerAt(activeGraphNode.x, activeGraphNode.y, 1000);
+            Graph.zoom(6, 2000);
+            
+            const det = document.getElementById('node-details');
+            document.getElementById('det-kind').innerText = activeGraphNode.kind;
+            document.getElementById('det-lang').innerText = activeGraphNode.language;
+            document.getElementById('det-service').innerText = activeGraphNode.service;
+            document.getElementById('det-name').innerText = activeGraphNode.name;
+            document.getElementById('det-path').innerText = activeGraphNode.file_path;
+            document.getElementById('det-conns').innerText = getNeighbors(activeGraphNode.id).size;
+            det.style.display = 'block';
+        }
+    }, state.showFuncs ? 0 : 500); // delay if we just forced a re-render
 });
 </script>
 </body>

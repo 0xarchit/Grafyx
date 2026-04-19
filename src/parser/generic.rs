@@ -2,7 +2,6 @@ use super::CodeParser;
 use crate::ir::{Edge, Node, NodeKind, RelationType};
 use std::path::Path;
 use tree_sitter::{Language, Parser as TSParser, Query, QueryCursor};
-use uuid::Uuid;
 
 pub struct GenericParser {
     language: Language,
@@ -33,11 +32,11 @@ impl CodeParser for GenericParser {
             None => return (nodes, edges),
         };
         
-        let file_id = Uuid::new_v4();
         let file_name = file_path.to_string_lossy().to_string();
+        let file_id = format!("{}::{}::FILE", self.lang_name, file_name);
         
         nodes.push(Node {
-            id: file_id,
+            id: file_id.clone(),
             kind: NodeKind::File,
             name: file_name.clone(),
             language: self.lang_name.to_string(),
@@ -53,9 +52,9 @@ impl CodeParser for GenericParser {
             for m in matches {
                 for capture in m.captures {
                     if let Ok(call_name) = capture.node.utf8_text(content.as_bytes()) {
-                        let call_id = Uuid::new_v4();
+                        let call_id = format!("{}::{}::{}", self.lang_name, file_name, call_name);
                         nodes.push(Node {
-                            id: call_id,
+                            id: call_id.clone(),
                             kind: NodeKind::Function,
                             name: call_name.to_string(),
                             language: self.lang_name.to_string(),
@@ -64,7 +63,7 @@ impl CodeParser for GenericParser {
                             end_line: capture.node.end_position().row,
                         });
                         edges.push(Edge {
-                            from_node_id: file_id,
+                            from_node_id: file_id.clone(),
                             to_node_id: call_id,
                             relation_type: RelationType::Calls,
                         });

@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum NodeKind {
     File,
     Module,
@@ -22,9 +21,9 @@ pub enum RelationType {
     ApiLink,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Node {
-    pub id: Uuid,
+    pub id: String,
     pub kind: NodeKind,
     pub name: String,
     pub language: String,
@@ -33,10 +32,10 @@ pub struct Node {
     pub end_line: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Edge {
-    pub from_node_id: Uuid,
-    pub to_node_id: Uuid,
+    pub from_node_id: String,
+    pub to_node_id: String,
     pub relation_type: RelationType,
 }
 
