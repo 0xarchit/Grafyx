@@ -7,14 +7,14 @@ pub struct Storage;
 
 impl Storage {
     pub fn save_json(graph: &Graph, output_dir: &Path) {
-        let file_path = output_dir.join("graph.json");
+        let file_path = output_dir.join("grafyx.json");
         if let Ok(file) = File::create(file_path) {
             let _ = serde_json::to_writer_pretty(file, graph);
         }
     }
 
     pub fn open_db(output_dir: &Path) -> Option<Connection> {
-        let db_path = output_dir.join("graph.db");
+        let db_path = output_dir.join("grafyx.db");
         Connection::open(db_path).ok()
     }
 
