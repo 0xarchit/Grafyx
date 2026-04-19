@@ -113,6 +113,43 @@ body::-webkit-scrollbar {
     letter-spacing: 2px;
 }
 
+/* Platform Selector */
+.platform-selector {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 4rem auto -3rem;
+    position: relative;
+    z-index: 30;
+}
+
+.platform-btn {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 0.6rem 1.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    border-radius: 4px;
+}
+
+.platform-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(100, 255, 180, 0.05);
+}
+
+.platform-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(100, 255, 180, 0.1);
+    box-shadow: 0 0 20px var(--accent-glow);
+}
+
 /* CLI Redesign */
 .cli-wrapper {
     max-width: 650px;
@@ -342,6 +379,30 @@ canvas#background-canvas {
     opacity: 0;
     transform: translateY(30px);
     animation: fadeInUp 1s forwards 0.8s;
+}
+
+.btn:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.star-badge {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.7rem;
+    margin-left: 12px;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--accent);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.star-badge::before {
+    content: '★';
+    font-size: 0.8rem;
+    color: var(--accent);
 }
 
 .btn:hover {

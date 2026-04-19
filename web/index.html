@@ -34,19 +34,26 @@
             </p>
 
             <div class="hero-actions">
-                <a href="https://github.com/0xarchit/grafyx" class="btn">
+                <a href="https://github.com/0xarchit/kgraph" class="btn">
                     <i data-lucide="github"></i>
                     View GitHub
+                    <span id="gh-star-count" class="star-badge">...</span>
                 </a>
                 <a href="#features" class="btn btn-outline" style="animation-delay: 0.9s;">
                     Explore Features
                 </a>
             </div>
 
+            <div class="platform-selector animate-on-scroll">
+                <button class="platform-btn active" data-os="linux">linux</button>
+                <button class="platform-btn" data-os="macos">macos</button>
+                <button class="platform-btn" data-os="windows">windows</button>
+            </div>
+
             <div class="cli-wrapper animate-on-scroll">
                 <div class="cli-box" id="cli-box">
-                    <div class="cli-line">git clone https://github.com/0xarchit/grafyx</div>
-                    <div class="cli-line" style="margin-bottom: 0;">cargo build --release</div>
+                    <div class="cli-line">curl -L https://git.io/grafyx -o grafyx</div>
+                    <div class="cli-line" style="margin-bottom: 0;">chmod +x grafyx && ./grafyx install</div>
                 </div>
                 <button class="copy-btn" onclick="copyCLI()">
                     <i data-lucide="copy"></i>
@@ -142,9 +149,8 @@
                 <!-- Card 2 -->
                 <div class="card glass animate-on-scroll">
                     <div class="card-icon"><i data-lucide="shield"></i></div>
-                    <h3>Rust Core</h3>
-                    <p>Sub-millisecond scanning performance powered by a type-safe concurrent engine. Scale your graph
-                        to thousands of nodes effortlessly.</p>
+                    <h3>Universal Binary</h3>
+                    <p>Static Linux binaries (MUSL) and Native Apple Silicon support. Run Grafyx on Arch, Ubuntu, or M3 Mac without dependencies.</p>
                 </div>
                 <!-- Card 3 -->
                 <div class="card glass animate-on-scroll">
@@ -162,10 +168,9 @@
                 </div>
                 <!-- Card 5 -->
                 <div class="card glass animate-on-scroll">
-                    <div class="card-icon"><i data-lucide="terminal"></i></div>
-                    <h3>CLI Native</h3>
-                    <p>Designed for the shell. One-command scans that instantly generate artifacts for interactive
-                        exploration.</p>
+                    <div class="card-icon"><i data-lucide="refresh-cw"></i></div>
+                    <h3>Live Lifecycle</h3>
+                    <p>Built-in `install` and `upgrade` commands. Background update checks ensure you're always running the latest engine.</p>
                 </div>
                 <!-- Card 6 -->
                 <div class="card glass animate-on-scroll">

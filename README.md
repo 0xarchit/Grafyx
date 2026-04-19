@@ -84,9 +84,9 @@ Grafyx follows a decoupled architecture, ensuring high-speed processing and a re
 |---------|-------------|--------|
 | **Recursive Scanning** | Scans entire projects to map file/directory hierarchies. | ✔ Active |
 | **Hot Physics** | Real-time adjustable simulation forces with sub-millisecond response. | ✔ Active |
-| **Interactive UI** | Drag nodes, toggle arrows, and click to inspect connections. | ✔ Active |
-| **Persistence** | Automatically saves layout and physics settings via `grafyx-settings`. | ✔ Active |
-| **Search & Filter** | Locate specific modules or files within massive graphs. | ✔ Active |
+| **Static Binaries** | Universal Linux binaries (MUSL) optimized for Arch and Ubuntu. | ✔ Active |
+| **Self-Managing** | Integrated `install` and `upgrade` commands for zero-friction setup. | ✔ Active |
+| **Apple Silicon Native** | Native performance for M1/M2/M3 architecture via ARM64 targets. | ✔ Active |
 | **Dual Storage** | Outputs both human-readable JSON and performance-optimized SQLite. | ✔ Active |
 
 ---
@@ -109,41 +109,44 @@ Grafyx features a "Hot Update" physics engine inspired by tools like Obsidian. A
 
 ## ⬢ Installation
 
-### Prerequisites
-- **Rust**: 1.94 or later
-- **SQLite**: (Optional, for database inspection)
+### ✦ Recommended: Binary Install (Quick)
 
-### Build from Source
+Install Grafyx globally with a single command. The installer automatically configures your `PATH`.
+
+#### **Linux / macOS (Universal)**
 ```bash
-# 1. Clone the repository
+curl -L https://github.com/0xarchit/kgraph/releases/latest/download/grafyx-linux-amd64-static -o grafyx && chmod +x grafyx && ./grafyx install && rm grafyx
+```
+
+#### **Windows (PowerShell)**
+```powershell
+iwr https://github.com/0xarchit/kgraph/releases/latest/download/grafyx-windows-amd64.exe -OutFile grafyx.exe; .\grafyx install; rm grafyx.exe
+```
+
+### ✦ Manual: Build from Source
+```bash
 git clone https://github.com/0xarchit/grafyx.git
-cd grafyx
-
-# 2. Build for release
+cd grafyx/tool
 cargo build --release
-
-# 3. Add to PATH (Optional)
-# Copy target/release/grafyx.exe to your bin directory
 ```
 
 ---
 
 ## ⌗ Usage
 
-Grafyx is controlled primarily through the command line.
+Grafyx handles its own lifecycle and codebase mapping.
 
-### Basic Scan
-Map your current project history and architecture:
-```bash
-grafyx scan ./src
-```
+### Commands
+| Command | Alias | Description |
+|---------|-------|-------------|
+| `grafyx scan <path>` | - | Scans the directory and generates architectural models. |
+| `grafyx install` | `i` | Installs the binary permanently to your system PATH. |
+| `grafyx upgrade` | `u` | Automatically updates Grafyx to the latest version. |
+| `grafyx --version` | - | Display current version. |
 
-### Options
-| Command | Description |
-|---------|-------------|
-| `grafyx scan <path>` | Scans the directory and generates `grafyx.json`. |
-| `grafyx --version` | Display current version. |
-| `grafyx --help` | Show detailed command usage. |
+### Smart Features
+- **Background Checks**: Grafyx silently checks for updates after every scan.
+- **Persistence**: Your visual configuration is saved locally for a seamless experience.
 
 ---
 

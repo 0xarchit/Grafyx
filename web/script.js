@@ -139,6 +139,119 @@ function magneticButtons() {
     });
 }
 
+class GrafyxInstaller {
+    constructor() {
+        this.platformButtons = document.querySelectorAll('.platform-btn');
+        this.cliLines = document.querySelector('#cli-box');
+        this.repo = '0xarchit/grafyx';
+        this.releaseData = null;
+        this.platforms = {
+            linux: {
+                assetMatch: 'linux-amd64-static',
+                cmd: (url) => [
+                    `curl -L ${url} -o grafyx`,
+                    `chmod +x grafyx && ./grafyx install`
+                ]
+            },
+            macos: {
+                assetMatch: 'macos-aarch64', // Default to ARM
+                cmd: (url) => [
+                    `curl -L ${url} -o grafyx`,
+                    `chmod +x grafyx && ./grafyx install`
+                ]
+            },
+            windows: {
+                assetMatch: 'windows-amd64.exe',
+                cmd: (url) => [
+                    `iwr ${url} -OutFile grafyx.exe`,
+                    `.\\grafyx install`
+                ]
+            }
+        };
+
+        this.init();
+    }
+
+    async init() {
+        if (!this.platformButtons.length) return;
+        
+        await Promise.all([
+            this.fetchRelease(),
+            this.fetchRepoStats()
+        ]);
+        
+        this.detectOS();
+        this.addEventListeners();
+        this.updateUI();
+    }
+
+    async fetchRepoStats() {
+        try {
+            const response = await fetch(`https://api.github.com/repos/${this.repo}`);
+            if (!response.ok) throw new Error();
+            const data = await response.json();
+            const count = data.stargazers_count;
+            const formatted = count > 999 ? (count / 1000).toFixed(1) + 'k' : count;
+            document.getElementById('gh-star-count').innerText = formatted;
+        } catch (e) {
+            document.getElementById('gh-star-count').innerText = '0';
+        }
+    }
+
+    async fetchRelease() {
+        try {
+            const response = await fetch(`https://api.github.com/repos/${this.repo}/releases/latest`);
+            if (!response.ok) throw new Error('API Rate Limit or Error');
+            this.releaseData = await response.json();
+        } catch (e) {
+            console.warn('GitHub API failed, using fallback URLs');
+            // Fallback to generic tag URLs if API fails
+            this.releaseData = {
+                assets: [
+                    { name: 'grafyx-linux-amd64-static', browser_download_url: `https://github.com/${this.repo}/releases/latest/download/grafyx-linux-amd64-static` },
+                    { name: 'grafyx-macos-aarch64', browser_download_url: `https://github.com/${this.repo}/releases/latest/download/grafyx-macos-aarch64` },
+                    { name: 'grafyx-windows-amd64.exe', browser_download_url: `https://github.com/${this.repo}/releases/latest/download/grafyx-windows-amd64.exe` }
+                ]
+            };
+        }
+    }
+
+    detectOS() {
+        const platform = window.navigator.platform.toLowerCase();
+        let detected = 'linux';
+        if (platform.includes('win')) detected = 'windows';
+        if (platform.includes('mac')) detected = 'macos';
+        
+        this.setActive(detected);
+    }
+
+    setActive(os) {
+        this.platformButtons.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.os === os);
+        });
+        this.currentOS = os;
+        this.updateUI();
+    }
+
+    addEventListeners() {
+        this.platformButtons.forEach(btn => {
+            btn.addEventListener('click', () => this.setActive(btn.dataset.os));
+        });
+    }
+
+    updateUI() {
+        if (!this.releaseData || !this.cliLines) return;
+        
+        const config = this.platforms[this.currentOS];
+        const asset = this.releaseData.assets.find(a => a.name.includes(config.assetMatch)) || this.releaseData.assets[0];
+        const commands = config.cmd(asset.browser_download_url);
+        
+        this.cliLines.innerHTML = commands.map((c, i) => 
+            `<div class="cli-line" ${i === commands.length - 1 ? 'style="margin-bottom: 0;"' : ''}>${c}</div>`
+        ).join('');
+    }
+}
+
 // Clipboard
 function copyCLI() {
     const lines = document.querySelectorAll('.cli-line');
@@ -190,6 +303,7 @@ function customCursor() {
 // Initialize on Load
 document.addEventListener('DOMContentLoaded', () => {
     new GrafyxBackground();
+    new GrafyxInstaller();
     magneticButtons();
     customCursor();
     
