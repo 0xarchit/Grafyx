@@ -15,6 +15,14 @@ impl Linker {
     pub fn new(dirs: Vec<String>) -> Self {
         Self { dirs }
     }
+
+    fn normalize_path(path: &str) -> String {
+        let mut normalized = path.replace('\\', "/");
+        while normalized.len() > 1 && normalized.ends_with('/') {
+            normalized.pop();
+        }
+        normalized
+    }
  
     pub fn link(&self, graph: &mut Graph) {
         let root_id = "GLOBAL::ROOT".to_string();
@@ -33,17 +41,18 @@ impl Linker {
  
         // Consolidate service mapping and sort by length for longest-prefix match
         let mut services: Vec<ServiceMapping> = self.dirs.iter().map(|dir| {
-            let path = std::path::Path::new(dir);
+            let normalized_dir = Self::normalize_path(dir);
+            let path = std::path::Path::new(&normalized_dir);
             let service_name = path.file_name()
                 .and_then(|s| s.to_str())
-                .unwrap_or(dir);
+                .unwrap_or(&normalized_dir);
             
-            let service_id = format!("SERVICE::{}", dir);
+            let service_id = format!("SERVICE::{}", normalized_dir);
             
             ServiceMapping {
                 id: service_id,
                 name: service_name.to_string(),
-                dir: dir.clone(),
+                dir: normalized_dir,
             }
         }).collect();
         
@@ -102,7 +111,8 @@ impl Linker {
             
             // Assign service via longest prefix match (checking path boundaries)
             for svc in &services {
-                let node_path = std::path::Path::new(&node.file_path);
+                let node_path_str = Self::normalize_path(&node.file_path);
+                let node_path = std::path::Path::new(&node_path_str);
                 let svc_path = std::path::Path::new(&svc.dir);
                 
                 if node_path.starts_with(svc_path) {
