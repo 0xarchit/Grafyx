@@ -18,16 +18,18 @@ impl Linker {
  
     pub fn link(&self, graph: &mut Graph) {
         let root_id = "GLOBAL::ROOT".to_string();
-        graph.nodes.push(crate::ir::Node {
-            id: root_id.clone(),
-            kind: crate::ir::NodeKind::Root,
-            name: "ROOT".to_string(),
-            language: "global".to_string(),
-            file_path: "".to_string(),
-            service: "global".to_string(),
-            start_line: 0,
-            end_line: 0,
-        });
+        if !graph.nodes.iter().any(|n| n.id == root_id) {
+            graph.nodes.push(crate::ir::Node {
+                id: root_id.clone(),
+                kind: crate::ir::NodeKind::Root,
+                name: "ROOT".to_string(),
+                language: "global".to_string(),
+                file_path: "".to_string(),
+                service: "global".to_string(),
+                start_line: 0,
+                end_line: 0,
+            });
+        }
  
         // Consolidate service mapping and sort by length for longest-prefix match
         let mut services: Vec<ServiceMapping> = self.dirs.iter().map(|dir| {
@@ -48,22 +50,26 @@ impl Linker {
         services.sort_by_key(|s| std::cmp::Reverse(s.dir.len()));
 
         for svc in &services {
-            graph.nodes.push(crate::ir::Node {
-                id: svc.id.clone(),
-                kind: crate::ir::NodeKind::Service,
-                name: svc.name.clone(),
-                language: "service".to_string(),
-                file_path: svc.dir.clone(),
-                service: svc.name.clone(),
-                start_line: 0,
-                end_line: 0,
-            });
+            if !graph.nodes.iter().any(|n| n.id == svc.id) {
+                graph.nodes.push(crate::ir::Node {
+                    id: svc.id.clone(),
+                    kind: crate::ir::NodeKind::Service,
+                    name: svc.name.clone(),
+                    language: "service".to_string(),
+                    file_path: svc.dir.clone(),
+                    service: svc.name.clone(),
+                    start_line: 0,
+                    end_line: 0,
+                });
+            }
             
-            graph.edges.push(crate::ir::Edge {
-                from_node_id: root_id.clone(),
-                to_node_id: svc.id.clone(),
-                relation_type: crate::ir::RelationType::RootLink,
-            });
+            if !graph.edges.iter().any(|e| e.from_node_id == root_id && e.to_node_id == svc.id && e.relation_type == crate::ir::RelationType::RootLink) {
+                graph.edges.push(crate::ir::Edge {
+                    from_node_id: root_id.clone(),
+                    to_node_id: svc.id.clone(),
+                    relation_type: crate::ir::RelationType::RootLink,
+                });
+            }
         }
  
         let mut unique_nodes: HashMap<String, String> = HashMap::new();
@@ -88,7 +94,9 @@ impl Linker {
         
         for mut node in old_nodes {
             if node.kind == crate::ir::NodeKind::Root || node.kind == crate::ir::NodeKind::Service {
-                final_nodes.push(node);
+                if !final_nodes.iter().any(|n: &crate::ir::Node| n.id == node.id) {
+                    final_nodes.push(node);
+                }
                 continue;
             }
             
@@ -293,6 +301,10 @@ mod tests {
         linker.link(&mut graph);
 
         // The edge to import_node_id should be remapped to file1_id
-        assert!(graph.edges.iter().any(|e| e.to_node_id == "file1_id"));
+        assert!(graph.edges.iter().any(|e| 
+            e.from_node_id == "main_file_id" && 
+            e.to_node_id == "file1_id" && 
+            e.relation_type == RelationType::Imports)
+        );
     }
 }

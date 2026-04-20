@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  publish:
-    name: Build and Release
+  build:
+    name: Build Artifacts
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -38,25 +38,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Generate Release Notes
-        id: notes
-        shell: bash
-        run: |
-          VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
-          if [ -f "tool/release.json" ] && jq -e --arg v "$VERSION" '.[$v]' tool/release.json > /dev/null; then
-            NOTE=$(jq -r --arg v "$VERSION" '.[$v].Note // ""' tool/release.json)
-            DESC=$(jq -r --arg v "$VERSION" '.[$v].Description // ""' tool/release.json)
-            FEATS=$(jq -r --arg v "$VERSION" '(.[$v].Features // [])[]' tool/release.json | sed 's/^/- /')
-            
-            echo "BODY<<EOF" >> $GITHUB_OUTPUT
-            [ ! -z "$NOTE" ] && echo "$NOTE" >> $GITHUB_OUTPUT && echo "" >> $GITHUB_OUTPUT
-            [ ! -z "$DESC" ] && echo "$DESC" >> $GITHUB_OUTPUT && echo "" >> $GITHUB_OUTPUT
-            [ ! -z "$FEATS" ] && echo "### Features" >> $GITHUB_OUTPUT && echo "$FEATS" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "BODY=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          fi
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -97,24 +78,66 @@ jobs:
           Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
           Compress-Archive -Path dist/${{ matrix.asset_name }} -DestinationPath dist/${{ matrix.asset_name }}.zip
 
-      - name: Sign Binaries
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.target }}
+          path: tool/dist/
+
+  sign_and_release:
+    name: Sign and Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Release Notes
+        id: notes
+        shell: bash
+        run: |
+          VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          if [ -f "tool/release.json" ] && jq -e --arg v "$VERSION" '.[$v]' tool/release.json > /dev/null; then
+            NOTE=$(jq -r --arg v "$VERSION" '.[$v].Note // ""' tool/release.json)
+            DESC=$(jq -r --arg v "$VERSION" '.[$v].Description // ""' tool/release.json)
+            FEATS=$(jq -r --arg v "$VERSION" '(.[$v].Features // [])[]' tool/release.json | sed 's/^/- /')
+            
+            echo "BODY<<EOF" >> $GITHUB_OUTPUT
+            [ ! -z "$NOTE" ] && echo "$NOTE" >> $GITHUB_OUTPUT && echo "" >> $GITHUB_OUTPUT
+            [ ! -z "$DESC" ] && echo "$DESC" >> $GITHUB_OUTPUT && echo "" >> $GITHUB_OUTPUT
+            [ ! -z "$FEATS" ] && echo "### Features" >> $GITHUB_OUTPUT && echo "$FEATS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "BODY=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Install Rust (for signing tool)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Sign Tool
         working-directory: tool
+        run: cargo build --release --bin sign
+
+      - name: Sign and Collate
         shell: bash
         env:
           GRAFYX_RELEASE_SIGNING_KEY: ${{ secrets.GRAFYX_RELEASE_SIGNING_KEY }}
         run: |
-          cargo build --release --bin sign
-          ./target/release/sign dist/${{ matrix.asset_name }}
-          ./target/release/sign dist/${{ matrix.asset_name }}.${{ matrix.archive_ext }}
+          mkdir -p final_dist
+          find artifacts -type f \( -name "grafyx-*" \) | while read file; do
+            filename=$(basename "$file")
+            cp "$file" "final_dist/$filename"
+            ./tool/target/release/sign "final_dist/$filename"
+          done
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           body: ${{ steps.notes.outputs.BODY }}
-          files: |
-            tool/dist/${{ matrix.asset_name }}
-            tool/dist/${{ matrix.asset_name }}.sig
-            tool/dist/${{ matrix.asset_name }}.${{ matrix.archive_ext }}
-            tool/dist/${{ matrix.asset_name }}.${{ matrix.archive_ext }}.sig
+          files: final_dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

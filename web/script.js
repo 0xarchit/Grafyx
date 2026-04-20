@@ -206,15 +206,16 @@ class GrafyxInstaller {
     }
 
     async fetchRepoStats() {
+        const el = document.getElementById('gh-star-count');
         try {
             const response = await fetch(`https://api.github.com/repos/${this.repo}`);
             if (!response.ok) throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
             const data = await response.json();
             const count = data.stargazers_count;
             const formatted = count > 999 ? (count / 1000).toFixed(1) + 'k' : count;
-            document.getElementById('gh-star-count').innerText = formatted;
+            if (el) el.innerText = formatted;
         } catch (e) {
-            document.getElementById('gh-star-count').innerText = '0';
+            if (el) el.innerText = '0';
         }
     }
 
@@ -230,6 +231,7 @@ class GrafyxInstaller {
                 assets: [
                     { name: 'grafyx-linux-amd64-static', browser_download_url: `https://github.com/${this.repo}/releases/latest/download/grafyx-linux-amd64-static` },
                     { name: 'grafyx-macos-aarch64', browser_download_url: `https://github.com/${this.repo}/releases/latest/download/grafyx-macos-aarch64` },
+                    { name: 'grafyx-macos-x86_64', browser_download_url: `https://github.com/${this.repo}/releases/latest/download/grafyx-macos-x86_64` },
                     { name: 'grafyx-windows-amd64.exe', browser_download_url: `https://github.com/${this.repo}/releases/latest/download/grafyx-windows-amd64.exe` }
                 ]
             };
@@ -244,14 +246,11 @@ class GrafyxInstaller {
             detected = 'windows';
         } else if (platform.includes('mac')) {
             detected = 'macos';
-            // Prefer Silicon (aarch64) over x86_64 if possible to detect
-            // This is a heuristic as browser API for arch is restricted
+            this.platforms.macos.assetMatch = 'macos-x86_64'; // Default to x86
             if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
                 navigator.userAgentData.getHighEntropyValues(['architecture']).then(values => {
-                    if (values.architecture === 'arm') {
+                    if (values.architecture === 'arm' || values.architecture === 'arm64') {
                         this.platforms.macos.assetMatch = 'macos-aarch64';
-                    } else {
-                        this.platforms.macos.assetMatch = 'macos-x86_64';
                     }
                     this.updateUI();
                 });
@@ -279,7 +278,9 @@ class GrafyxInstaller {
         if (!this.releaseData || !this.cliLines) return;
         
         const config = this.platforms[this.currentOS];
-        const asset = this.releaseData.assets.find(a => a.name.includes(config.assetMatch));
+        const asset = this.releaseData.assets.find(a => 
+            a.name.endsWith(config.assetMatch) && !a.name.endsWith('.sig')
+        );
         
         if (!asset) {
             this.cliLines.innerHTML = '<div class="cli-line" style="color: var(--accent); opacity: 0.8;">Download currently unavailable for this architecture. Please check releases manually.</div>';
@@ -302,15 +303,18 @@ async function copyCLI() {
         await navigator.clipboard.writeText(text);
         
         const btn = document.querySelector('.copy-btn');
-        const icon = btn.querySelector('i');
+        const icon = btn ? btn.querySelector('i') : null;
         
-        if (window.lucide) {
+        if (btn && icon && window.lucide) {
             icon.setAttribute('data-lucide', 'check');
             window.lucide.createIcons();
             
             setTimeout(() => {
-                icon.setAttribute('data-lucide', 'copy');
-                window.lucide.createIcons();
+                const stillIcon = btn.querySelector('i');
+                if (stillIcon) {
+                    stillIcon.setAttribute('data-lucide', 'copy');
+                    window.lucide.createIcons();
+                }
             }, 2000);
         }
     } catch (err) {
