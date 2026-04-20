@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Sora:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
 
 :root {
     --bg: #030407;
@@ -34,17 +34,19 @@
 .security-badge, .hero-tag {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
-    padding: 0.5rem 1rem;
+    padding: 0.6rem 1.25rem;
     background: rgba(100, 255, 180, 0.05);
     border: 1px solid rgba(100, 255, 180, 0.2);
     color: var(--accent);
     border-radius: 100px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.12em;
     font-family: 'JetBrains Mono', monospace;
     text-transform: uppercase;
+    min-width: 140px;
 }
 
 .security-badge i { width: 14px; height: 14px; }
@@ -123,11 +125,11 @@ body::-webkit-scrollbar {
 .ornament-br { bottom: 2rem; right: 2rem; border-bottom: 1px solid var(--accent); border-right: 1px solid var(--accent); padding: 8px; }
 
 .section-padding {
-    padding: var(--section-gap) 0;
+    padding: clamp(4rem, 10vw, 8rem) 0;
 }
 
 .container {
-    max-width: 1400px;
+    max-width: 1300px;
     margin: 0 auto;
     padding: 0 var(--container-padding);
     position: relative;
@@ -339,11 +341,6 @@ canvas#background-canvas {
     opacity: 0.6;
 }
 
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 2rem;
-}
 
 /* Glass Utility */
 .glass {
@@ -449,13 +446,10 @@ canvas#background-canvas {
 }
 
 /* Features Grid */
-.section-padding {
-    padding: 8rem 0;
-}
 
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     gap: 2rem;
 }
 
@@ -563,16 +557,6 @@ canvas#background-canvas {
 }
 
 /* CLI Snippet */
-.cli-box {
-    background: #000;
-    padding: 2rem;
-    border-radius: 1rem;
-    border: 1px solid var(--border);
-    font-family: 'Courier New', monospace;
-    position: relative;
-    overflow: hidden;
-    margin-top: 4rem;
-}
 
 .cli-box::before {
     content: '';
@@ -584,11 +568,6 @@ canvas#background-canvas {
     background: var(--accent);
 }
 
-.cli-line {
-    display: block;
-    color: var(--accent);
-    margin-bottom: 0.5rem;
-}
 
 .cli-line span {
     color: var(--text-muted);

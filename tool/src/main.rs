@@ -160,7 +160,9 @@ fn handle_uninstall() -> Result<()> {
                             if line.contains(marker_end) { skipping = false; continue; }
                             if !skipping { new_lines.push(line); }
                         }
-                        fs::write(&shell_path, new_lines.join("\n")).context("Failed to clean shell profile")?;
+                        let mut result = new_lines.join("\n");
+                        if !result.is_empty() { result.push('\n'); }
+                        fs::write(&shell_path, result).context("Failed to clean shell profile")?;
                     }
                 }
             }
@@ -242,9 +244,12 @@ fn handle_upgrade() -> Result<()> {
         println!("Signature verified successfully.");
         println!("Installing update...");
         
+        let install_path = std::env::current_exe().context("Failed to locate current executable")?;
+        let temp_install_path = install_path.with_extension("tmp_update");
+        
         self_update::Move::from_source(&tmp_bin)
-            .replace_using_temp(&tmp_bin)
-            .to_dest(&std::env::current_exe().context("Failed to locate current executable")?)
+            .replace_using_temp(&temp_install_path)
+            .to_dest(&install_path)
             .context("Failed to install new binary")?;
 
         println!("Successfully updated to Grafyx {}!", latest_version);

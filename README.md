@@ -115,12 +115,12 @@ Install Grafyx globally with a single command. The installer automatically confi
 
 #### **Linux / macOS (Universal)**
 ```bash
-curl -L https://github.com/0xarchit/kgraph/releases/latest/download/grafyx-linux-amd64-static -o grafyx && chmod +x grafyx && ./grafyx install && rm grafyx
+curl -L https://github.com/0xarchit/grafyx/releases/latest/download/grafyx-linux-amd64-static -o grafyx && chmod +x grafyx && ./grafyx install && rm grafyx
 ```
 
 #### **Windows (PowerShell)**
 ```powershell
-iwr https://github.com/0xarchit/kgraph/releases/latest/download/grafyx-windows-amd64.exe -OutFile grafyx.exe; .\grafyx install; rm grafyx.exe
+iwr https://github.com/0xarchit/grafyx/releases/latest/download/grafyx-windows-amd64.exe -OutFile grafyx.exe; .\grafyx install; del grafyx.exe
 ```
 
 ### ✦ Manual: Build from Source
@@ -142,6 +142,7 @@ Grafyx handles its own lifecycle and codebase mapping.
 | `grafyx scan <path>` | - | Scans the directory and generates architectural models. |
 | `grafyx install` | `i` | Installs the binary permanently to your system PATH. |
 | `grafyx upgrade` | `u` | Automatically updates Grafyx to the latest version. |
+| `grafyx uninstall` | - | Cleanly removes Grafyx from your system. |
 | `grafyx --version` | - | Display current version. |
 
 ### Smart Features

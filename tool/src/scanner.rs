@@ -1,4 +1,4 @@
-use ignore::WalkBuilder;
+use ignore::{WalkBuilder, overrides::OverrideBuilder};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,61 +34,50 @@ pub struct Scanner {
 impl Scanner {
     pub fn new(dirs: Vec<String>, ignore_patterns: Option<Vec<String>>) -> Self {
         let mut ignores = vec![
-    // Node / JS / TS
-    "node_modules".to_string(),
-    "dist".to_string(),
-    "build".to_string(),
-    ".next".to_string(),
-    ".nuxt".to_string(),
-    ".cache".to_string(),
-    ".parcel-cache".to_string(),
-    ".svelte-kit".to_string(),
-    "out".to_string(),
-    "coverage".to_string(),
-    ".turbo".to_string(),
-    ".vite".to_string(),
-
-    // Python
-    "__pycache__".to_string(),
-    ".pytest_cache".to_string(),
-    ".mypy_cache".to_string(),
-    ".ruff_cache".to_string(),
-    ".hypothesis".to_string(),
-    ".tox".to_string(),
-    ".nox".to_string(),
-    ".venv".to_string(),
-    "venv".to_string(),
-    "env".to_string(),
-    ".env".to_string(),
-
-    // Java / JVM
-    "target".to_string(),     // Maven / Rust overlap
-    "build".to_string(),      // Gradle
-    ".gradle".to_string(),
-    "out".to_string(),
-    "*.class".to_string(),
-
-    // Go
-    "bin".to_string(),
-    "pkg".to_string(),
-    "*.test".to_string(),
-    "vendor".to_string(), // sometimes not waste, use carefully
-
-    // Rust
-    "target".to_string(),
-    "**/*.rs.bk".to_string(),
-
-    // General
-    ".git".to_string(),
-    ".idea".to_string(),
-    ".vscode".to_string(),
-    "*.log".to_string(),
-    "*.tmp".to_string(),
-    "*.swp".to_string(),
-    "*.lock".to_string(),
-    "tmp".to_string(),
-    "temp".to_string(),
-];
+            // Global / General
+            ".git".to_string(),
+            ".idea".to_string(),
+            ".vscode".to_string(),
+            "target".to_string(),
+            "build".to_string(),
+            "dist".to_string(),
+            "out".to_string(),
+            "node_modules".to_string(),
+            "vendor".to_string(),
+            "bin".to_string(),
+            "pkg".to_string(),
+            "tmp".to_string(),
+            "temp".to_string(),
+            "__pycache__".to_string(),
+            "venv".to_string(),
+            ".venv".to_string(),
+            "env".to_string(),
+            ".env".to_string(),
+            "coverage".to_string(),
+            "*.log".to_string(),
+            "*.tmp".to_string(),
+            "*.swp".to_string(),
+            "*.lock".to_string(),
+            "*.class".to_string(),
+            "*.test".to_string(),
+            "**/*.rs.bk".to_string(),
+            
+            // Framework Specific
+            ".next".to_string(),
+            ".nuxt".to_string(),
+            ".cache".to_string(),
+            ".parcel-cache".to_string(),
+            ".svelte-kit".to_string(),
+            ".turbo".to_string(),
+            ".vite".to_string(),
+            ".pytest_cache".to_string(),
+            ".mypy_cache".to_string(),
+            ".ruff_cache".to_string(),
+            ".hypothesis".to_string(),
+            ".tox".to_string(),
+            ".nox".to_string(),
+            ".gradle".to_string(),
+        ];
         if let Some(custom) = ignore_patterns {
             ignores.extend(custom);
         }
@@ -100,6 +89,15 @@ impl Scanner {
 
     pub fn scan(&self) -> Vec<(PathBuf, Language)> {
         let mut results = Vec::new();
+        
+        let mut override_builder = OverrideBuilder::new(".");
+        for pattern in &self.ignore_patterns {
+            let mut p = pattern.clone();
+            if !p.starts_with('!') { p = format!("!{}", p); }
+            override_builder.add(&p).ok();
+        }
+        let overrides = override_builder.build().unwrap_or(ignore::overrides::Override::empty());
+
         for dir in &self.dirs {
             let path = Path::new(dir);
             if !path.exists() {
@@ -107,9 +105,7 @@ impl Scanner {
             }
             let mut builder = WalkBuilder::new(path);
             builder.hidden(false);
-            for ignore in &self.ignore_patterns {
-                builder.add_custom_ignore_filename(ignore);
-            }
+            builder.overrides(overrides.clone());
             for entry in builder.build().flatten() {
                 if entry.file_type().is_some_and(|ft| ft.is_file()) {
                     let file_path = entry.into_path();

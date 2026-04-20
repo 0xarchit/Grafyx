@@ -1,7 +1,7 @@
 {
   "0.1.0": {
     "Note": "[Beta release] may be unstable and has bugs",
-    "Description": "Initial release of KGraph",
+    "Description": "Initial release of Grafyx",
     "Features": [
       "Add support for Javascript, Typescript, Golang, Python, Rust"
     ]

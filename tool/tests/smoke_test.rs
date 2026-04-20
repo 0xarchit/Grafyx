@@ -20,7 +20,10 @@ fn test_full_scan_smoke() {
     if binary_path.ends_with("deps") {
         binary_path.pop();
     }
-    let binary = binary_path.join("grafyx");
+    let mut binary = binary_path.join("grafyx");
+    if cfg!(windows) {
+        binary.set_extension("exe");
+    }
     
     let status = Command::new(binary)
         .arg("scan")

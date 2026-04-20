@@ -61,9 +61,10 @@ impl GenericParser {
                 // Handle "import ... from 'path'"
                 if text.contains(" from ") {
                     if let Some(path_start) = text.find('\'').or_else(|| text.find('\"')) {
-                        let path = &text[path_start + 1..];
-                        if let Some(path_end) = path.find('\'').or_else(|| path.find('\"')) {
-                            let mod_path = &path[..path_end];
+                        let quote = text.as_bytes()[path_start];
+                        let path_part = &text[path_start + 1..];
+                        if let Some(path_end) = path_part.find(quote as char) {
+                            let mod_path = &path_part[..path_end];
                             return mod_path.split('/').next_back().unwrap_or(mod_path).to_string();
                         }
                     }
@@ -71,9 +72,10 @@ impl GenericParser {
                 // Handle require('path')
                 if text.contains("require(") {
                     if let Some(path_start) = text.find('\'').or_else(|| text.find('\"')) {
-                        let path = &text[path_start + 1..];
-                        if let Some(path_end) = path.find('\'').or_else(|| path.find('\"')) {
-                            let mod_path = &path[..path_end];
+                        let quote = text.as_bytes()[path_start];
+                        let path_part = &text[path_start + 1..];
+                        if let Some(path_end) = path_part.find(quote as char) {
+                            let mod_path = &path_part[..path_end];
                             return mod_path.split('/').next_back().unwrap_or(mod_path).to_string();
                         }
                     }
@@ -158,7 +160,9 @@ impl CodeParser for GenericParser {
                             (NodeKind::Function, RelationType::Calls)
                         };
 
-                        let call_id = format!("{}::{}::{}", self.lang_name, file_name, name);
+                        let start_line = capture.node.start_position().row;
+                        let end_line = capture.node.end_position().row;
+                        let call_id = format!("{}::{}::{}::L{}", self.lang_name, file_name, name, start_line);
                         nodes.push(Node {
                             id: call_id.clone(),
                             kind,
@@ -166,8 +170,8 @@ impl CodeParser for GenericParser {
                             language: self.lang_name.to_string(),
                             file_path: file_name.clone(),
                             service: "".to_string(),
-                            start_line: capture.node.start_position().row,
-                            end_line: capture.node.end_position().row,
+                            start_line,
+                            end_line,
                         });
                         edges.push(Edge {
                             from_node_id: file_id.clone(),

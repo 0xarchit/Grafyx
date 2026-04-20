@@ -44,4 +44,16 @@ mod tests {
         assert_eq!(key_bytes.len(), 32);
         VerifyingKey::from_bytes(key_bytes.as_slice().try_into().unwrap()).expect("Should init key");
     }
+    #[test]
+    fn test_verify_signature_fail_invalid_data() {
+        use tempfile::NamedTempFile;
+        use std::io::Write;
+        
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"wrong data").unwrap();
+        
+        let sig = [0u8; 64];
+        let result = verify_signature(file.path(), &sig);
+        assert!(result.is_err());
+    }
 }

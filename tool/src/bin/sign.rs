@@ -4,6 +4,7 @@ use std::path::Path;
 use ed25519_dalek::{SigningKey, Signer};
 use base64::prelude::*;
 use anyhow::{Context, Result, bail};
+use zeroize::Zeroize;
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -24,6 +25,14 @@ fn main() -> Result<()> {
             .try_into()
             .map_err(|_| anyhow::anyhow!("Invalid private key length: expected 32 bytes"))?
     );
+    
+    // Safety: Zeroize secret bytes immediately after key generation
+    let mut priv_key_bytes = priv_key_bytes;
+    priv_key_bytes.zeroize();
+    
+    // Also zeroize the source string if possible
+    let mut priv_key_base64 = priv_key_base64;
+    priv_key_base64.zeroize();
     
     if !file_path.exists() {
         bail!("File not found: {:?}", file_path);

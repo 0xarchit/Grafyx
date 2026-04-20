@@ -260,6 +260,17 @@ mod tests {
             start_line: 1,
             end_line: 1,
         });
+        // Source file that imports lib
+        graph.nodes.push(Node {
+            id: "main_file_id".to_string(),
+            kind: NodeKind::File,
+            name: "/app/main.py".to_string(),
+            language: "python".to_string(),
+            file_path: "/app/main.py".to_string(),
+            service: "".to_string(),
+            start_line: 0,
+            end_line: 0,
+        });
 
         graph.edges.push(Edge {
             from_node_id: "main_file_id".to_string(),

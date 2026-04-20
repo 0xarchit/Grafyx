@@ -194,7 +194,7 @@ impl Storage {
         let json_data = serde_json::to_string(graph).context("Failed to serialize graph for HTML")?;
         
         let data_script = format!("<script id=\"graph-data\" type=\"application/json\">{}</script>", json_data);
-        let final_html = template.replace("{{GRAPH_DATA_PLACEHOLDER}}", &data_script);
+        let final_html = template.replace("{{ GRAPH_DATA_PLACEHOLDER }}", &data_script);
         
         fs::write(&file_path, final_html).with_context(|| format!("Failed to write HTML report to {:?}", file_path))?;
         Ok(())

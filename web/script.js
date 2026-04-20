@@ -234,8 +234,24 @@ class GrafyxInstaller {
     detectOS() {
         const platform = window.navigator.platform.toLowerCase();
         let detected = 'linux';
-        if (platform.includes('win')) detected = 'windows';
-        if (platform.includes('mac')) detected = 'macos';
+        
+        if (platform.includes('win')) {
+            detected = 'windows';
+        } else if (platform.includes('mac')) {
+            detected = 'macos';
+            // Prefer Silicon (aarch64) over x86_64 if possible to detect
+            // This is a heuristic as browser API for arch is restricted
+            if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+                navigator.userAgentData.getHighEntropyValues(['architecture']).then(values => {
+                    if (values.architecture === 'arm') {
+                        this.platforms.macos.assetMatch = 'macos-aarch64';
+                    } else {
+                        this.platforms.macos.assetMatch = 'macos-x86_64';
+                    }
+                    this.updateUI();
+                });
+            }
+        }
         
         this.setActive(detected);
     }
@@ -268,22 +284,27 @@ class GrafyxInstaller {
 }
 
 // Clipboard
-function copyCLI() {
-    const lines = document.querySelectorAll('.cli-line');
-    const text = Array.from(lines).map(l => l.innerText.trim()).join('\n');
-    navigator.clipboard.writeText(text);
-    
-    const btn = document.querySelector('.copy-btn');
-    const icon = btn.querySelector('i');
-    
-    if (window.lucide) {
-        icon.setAttribute('data-lucide', 'check');
-        window.lucide.createIcons();
+async function copyCLI() {
+    try {
+        const lines = document.querySelectorAll('.cli-line');
+        const text = Array.from(lines).map(l => l.innerText.trim()).join('\n');
+        await navigator.clipboard.writeText(text);
         
-        setTimeout(() => {
-            icon.setAttribute('data-lucide', 'copy');
+        const btn = document.querySelector('.copy-btn');
+        const icon = btn.querySelector('i');
+        
+        if (window.lucide) {
+            icon.setAttribute('data-lucide', 'check');
             window.lucide.createIcons();
-        }, 2000);
+            
+            setTimeout(() => {
+                icon.setAttribute('data-lucide', 'copy');
+                window.lucide.createIcons();
+            }, 2000);
+        }
+    } catch (err) {
+        console.error('Failed to copy: ', err);
+        alert('Failed to copy to clipboard. Please copy manually.');
     }
 }
 
