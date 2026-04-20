@@ -279,7 +279,13 @@ class GrafyxInstaller {
         if (!this.releaseData || !this.cliLines) return;
         
         const config = this.platforms[this.currentOS];
-        const asset = this.releaseData.assets.find(a => a.name.includes(config.assetMatch)) || this.releaseData.assets[0];
+        const asset = this.releaseData.assets.find(a => a.name.includes(config.assetMatch));
+        
+        if (!asset) {
+            this.cliLines.innerHTML = '<div class="cli-line" style="color: var(--accent); opacity: 0.8;">Download currently unavailable for this architecture. Please check releases manually.</div>';
+            return;
+        }
+
         const commands = config.cmd(asset.browser_download_url);
         
         this.cliLines.innerHTML = commands.map((c, i) => 

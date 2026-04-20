@@ -31,11 +31,12 @@ impl Linker {
  
         // Consolidate service mapping and sort by length for longest-prefix match
         let mut services: Vec<ServiceMapping> = self.dirs.iter().map(|dir| {
-            let service_name = std::path::Path::new(dir)
-                .file_name()
+            let path = std::path::Path::new(dir);
+            let service_name = path.file_name()
                 .and_then(|s| s.to_str())
                 .unwrap_or(dir);
-            let service_id = format!("SERVICE::{}", service_name);
+            
+            let service_id = format!("SERVICE::{}", dir);
             
             ServiceMapping {
                 id: service_id,
@@ -91,9 +92,12 @@ impl Linker {
                 continue;
             }
             
-            // Assign service via longest prefix match
+            // Assign service via longest prefix match (checking path boundaries)
             for svc in &services {
-                if node.file_path.starts_with(&svc.dir) {
+                let node_path = std::path::Path::new(&node.file_path);
+                let svc_path = std::path::Path::new(&svc.dir);
+                
+                if node_path.starts_with(svc_path) {
                     node.service = svc.name.clone();
                     if node.kind == crate::ir::NodeKind::File {
                         graph.edges.push(crate::ir::Edge {
@@ -149,6 +153,10 @@ impl Linker {
                         key_buffer.push_str(&node.name);
                         key_buffer.push_str("::");
                         key_buffer.push_str(&node.file_path);
+                        key_buffer.push_str("::");
+                        key_buffer.push_str(&node.start_line.to_string());
+                        key_buffer.push_str("-");
+                        key_buffer.push_str(&node.end_line.to_string());
                         
                         if let Some(existing_id) = unique_nodes.get(&key_buffer) {
                             id_map.insert(node.id.clone(), existing_id.clone());
@@ -165,6 +173,10 @@ impl Linker {
                     key_buffer.push_str(&node.name);
                     key_buffer.push_str("::");
                     key_buffer.push_str(&node.file_path);
+                    key_buffer.push_str("::");
+                    key_buffer.push_str(&node.start_line.to_string());
+                    key_buffer.push_str("-");
+                    key_buffer.push_str(&node.end_line.to_string());
 
                     if let Some(existing_id) = unique_nodes.get(&key_buffer) {
                         id_map.insert(node.id.clone(), existing_id.clone());

@@ -1,5 +1,6 @@
 use crate::ir::{Graph, Node, Edge, NodeKind, RelationType};
 use rusqlite::{params, Connection};
+use std::collections::HashSet;
 use std::fs;
 use std::fs::File;
 use std::io::BufWriter;
@@ -157,6 +158,23 @@ impl Storage {
         let mut conn = conn;
         let tx = conn.transaction()?;
         {
+            // Clean up stale data for the files present in the current graph
+            let file_paths: HashSet<&String> = graph.nodes.iter()
+                .filter(|n| !n.file_path.is_empty())
+                .map(|n| &n.file_path)
+                .collect();
+
+            for path in file_paths {
+                // Delete edges where either end is a node in this file
+                tx.execute(
+                    "DELETE FROM edges WHERE from_node_id IN (SELECT id FROM nodes WHERE file_path = ?1) 
+                     OR to_node_id IN (SELECT id FROM nodes WHERE file_path = ?1)",
+                    params![path],
+                )?;
+                // Delete the nodes themselves
+                tx.execute("DELETE FROM nodes WHERE file_path = ?1", params![path])?;
+            }
+
             for node in &graph.nodes {
                 let kind_str = node.kind.to_string();
                 tx.execute(
@@ -194,8 +212,9 @@ impl Storage {
         let file_path = output_dir.join("index.html");
         let template = include_str!("template.html");
         let json_data = serde_json::to_string(graph).context("Failed to serialize graph for HTML")?;
+        let safe_json = json_data.replace("</script>", "<\\/script>");
         
-        let data_script = format!("<script id=\"graph-data\" type=\"application/json\">{}</script>", json_data);
+        let data_script = format!("<script id=\"graph-data\" type=\"application/json\">{}</script>", safe_json);
         let final_html = template.replace("{{ GRAPH_DATA_PLACEHOLDER }}", &data_script);
         
         fs::write(&file_path, final_html).with_context(|| format!("Failed to write HTML report to {:?}", file_path))?;
@@ -270,7 +289,7 @@ mod tests {
                         kind: NodeKind::Function,
                         name: format!("func_{}", j),
                         language: "rust".to_string(),
-                        file_path: format!("file_{}.rs", i),
+                        file_path: format!("file_{}_{}.rs", i, j),
                         service: "test".to_string(),
                         start_line: 0,
                         end_line: 0,

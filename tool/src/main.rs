@@ -206,8 +206,19 @@ fn handle_upgrade() -> Result<()> {
         println!("New version {} available! (Current: {})", latest_version, current_version);
         
         let target = self_update::get_target();
-        let bin_asset = latest.asset_for(target, None)
-            .context("No binary asset found for your platform")?;
+        let asset_name = match target {
+            "x86_64-unknown-linux-musl" => "grafyx-linux-amd64-static",
+            "aarch64-apple-darwin" => "grafyx-macos-aarch64",
+            "x86_64-apple-darwin" => "grafyx-macos-x86_64",
+            "x86_64-pc-windows-msvc" => "grafyx-windows-amd64.exe",
+            _ => "",
+        };
+
+        let bin_asset = if !asset_name.is_empty() {
+            latest.assets.iter().find(|a| a.name == asset_name).cloned()
+        } else {
+            latest.asset_for(target, None)
+        }.context(format!("No binary asset found for your platform ({}). Please update manually at https://github.com/0xarchit/grafyx/releases", target))?;
             
         let sig_asset_name = format!("{}.sig", bin_asset.name);
         let sig_asset = latest.assets.iter().find(|a| a.name == sig_asset_name)
@@ -327,17 +338,18 @@ fn main() -> Result<()> {
             
             let total_files = files.len();
 
-            let results: Vec<(Vec<Node>, Vec<Edge>, bool)> = files.into_par_iter().map(|(file_path, lang)| {
+            let results: Vec<(String, String, Vec<Node>, Vec<Edge>, bool)> = files.into_par_iter().map(|(file_path, lang)| {
+                let file_path_str = file_path.to_string_lossy().to_string();
                 let conn = Storage::open_db(out_path).ok();
                 
                 if let Ok(content) = fs::read_to_string(&file_path) {
                     let hash = blake3::hash(content.as_bytes()).to_hex().to_string();
 
                     if let Some(ref c) = conn {
-                        if let Some(old_hash) = Storage::get_file_hash(c, &file_path.to_string_lossy()) {
+                        if let Some(old_hash) = Storage::get_file_hash(c, &file_path_str) {
                             if old_hash == hash {
-                                if let Ok(data) = Storage::load_file_data(c, &file_path.to_string_lossy()) {
-                                    return (data.0, data.1, true);
+                                if let Ok(data) = Storage::load_file_data(c, &file_path_str) {
+                                    return (file_path_str, hash, data.0, data.1, true);
                                 }
                             }
                         }
@@ -346,10 +358,7 @@ fn main() -> Result<()> {
                     if let Some(parser) = resolve_parser(&lang) {
                         match parser.parse(&file_path, &content) {
                             Ok((nodes, edges)) => {
-                                if let Some(ref c) = conn {
-                                    let _ = Storage::update_file_hash(c, &file_path.to_string_lossy(), &hash);
-                                }
-                                return (nodes, edges, false);
+                                return (file_path_str, hash, nodes, edges, false);
                             }
                             Err(e) => {
                                 tracing::warn!("Failed to parse {}: {}", file_path.display(), e);
@@ -359,15 +368,20 @@ fn main() -> Result<()> {
                     }
                 }
 
-                (Vec::new(), Vec::new(), false)
+                (file_path_str, "".to_string(), Vec::new(), Vec::new(), false)
             }).collect();
 
             let mut graph = Graph::new();
             let mut skipped_count = 0;
-            for (nodes, edges, skipped) in results {
+            let mut pending_hashes = Vec::new();
+            for (file_path, hash, nodes, edges, skipped) in results {
                 graph.nodes.extend(nodes);
                 graph.edges.extend(edges);
-                if skipped { skipped_count += 1; }
+                if skipped { 
+                    skipped_count += 1; 
+                } else if !hash.is_empty() {
+                    pending_hashes.push((file_path, hash));
+                }
             }
 
             let fail_count = parse_failures.load(Ordering::Relaxed);
@@ -376,16 +390,27 @@ fn main() -> Result<()> {
             let linker = Linker::new(dirs.clone());
             linker.link(&mut graph);
 
-            match format {
+            let sqlite_saved = match format {
                 OutputFormat::Json => {
                     Storage::save_json(&graph, out_path)?;
+                    false
                 }
                 OutputFormat::Sqlite => {
                     Storage::save_sqlite(&graph, out_path)?;
+                    true
                 }
                 OutputFormat::Both => {
                     Storage::save_json(&graph, out_path)?;
                     Storage::save_sqlite(&graph, out_path)?;
+                    true
+                }
+            };
+
+            if sqlite_saved {
+                if let Ok(conn) = Storage::open_db(out_path) {
+                    for (path, hash) in pending_hashes {
+                        let _ = Storage::update_file_hash(&conn, &path, &hash);
+                    }
                 }
             }
             Storage::save_html(&graph, out_path)?;

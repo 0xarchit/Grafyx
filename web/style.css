@@ -325,7 +325,7 @@ body::-webkit-scrollbar {
 }
 
 h1, h2, h3, .heading-font {
-    font-family: 'Sora', sans-serif;
+    font-family: Sora, sans-serif;
     letter-spacing: -0.02em;
 }
 
@@ -374,7 +374,7 @@ canvas#background-canvas {
     -webkit-text-fill-color: transparent;
     opacity: 0;
     transform: translateY(30px);
-    animation: fadeInUp 1s forwards 0.4s;
+    animation: fade-in-up 1s forwards 0.4s;
 }
 
 .hero-description {
@@ -384,7 +384,7 @@ canvas#background-canvas {
     margin-bottom: 3rem;
     opacity: 0;
     transform: translateY(30px);
-    animation: fadeInUp 1s forwards 0.6s;
+    animation: fade-in-up 1s forwards 0.6s;
 }
 
 /* Components */
@@ -401,7 +401,7 @@ canvas#background-canvas {
     transition: var(--transition-fast);
     opacity: 0;
     transform: translateY(30px);
-    animation: fadeInUp 1s forwards 0.8s;
+    animation: fade-in-up 1s forwards 0.8s;
 }
 
 .btn:active {
