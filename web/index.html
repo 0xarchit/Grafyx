@@ -25,7 +25,16 @@
     <main>
         <!-- Hero Section -->
         <section class="hero container">
-            <span class="hero-tag">Beta Phase 0.1</span>
+            <div class="badge-row">
+                <span class="security-badge">
+                    <i data-lucide="flask-conical"></i>
+                    BETA PHASE 0.1
+                </span>
+                <span class="security-badge">
+                    <i data-lucide="shield-check"></i>
+                    ED25519 VERIFIED
+                </span>
+            </div>
             <h1 class="hero-title" id="hero-title">Visualize Your Codebase <br>Ecosystem.</h1>
 
             <p class="hero-description">
@@ -94,6 +103,7 @@
         </section>
 
         <div class="scan-line"></div>
+        <div class="scan-overlay"></div>
 
         <!-- How It Works -->
         <section id="workflow" class="container section-padding">
@@ -150,7 +160,8 @@
                 <div class="card glass animate-on-scroll">
                     <div class="card-icon"><i data-lucide="shield"></i></div>
                     <h3>Universal Binary</h3>
-                    <p>Static Linux binaries (MUSL) and Native Apple Silicon support. Run Grafyx on Arch, Ubuntu, or M3 Mac without dependencies.</p>
+                    <p>Static Linux binaries (MUSL) and Native Apple Silicon support. Run Grafyx on Arch, Ubuntu, or M3
+                        Mac without dependencies.</p>
                 </div>
                 <!-- Card 3 -->
                 <div class="card glass animate-on-scroll">
@@ -170,7 +181,8 @@
                 <div class="card glass animate-on-scroll">
                     <div class="card-icon"><i data-lucide="refresh-cw"></i></div>
                     <h3>Live Lifecycle</h3>
-                    <p>Built-in `install` and `upgrade` commands. Background update checks ensure you're always running the latest engine.</p>
+                    <p>Built-in `install` and `upgrade` commands. Background update checks ensure you're always running
+                        the latest engine.</p>
                 </div>
                 <!-- Card 6 -->
                 <div class="card glass animate-on-scroll">

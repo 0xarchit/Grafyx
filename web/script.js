@@ -86,6 +86,18 @@ class GrafyxBackground {
         window.addEventListener('mousemove', (e) => {
             this.mouse.x = e.clientX;
             this.mouse.y = e.clientY;
+
+            // Apply repulsion force to nodes
+            this.nodes.forEach(node => {
+                const dx = node.x - this.mouse.x;
+                const dy = node.y - this.mouse.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 150) {
+                    const force = (150 - dist) / 150;
+                    node.vx += dx / dist * force * 0.8;
+                    node.vy += dy / dist * force * 0.8;
+                }
+            });
         });
         window.addEventListener('mouseleave', () => {
             this.mouse.x = null;
@@ -97,12 +109,15 @@ class GrafyxBackground {
 
 // Terminal Simulation Logic
 const terminalSteps = [
-    { text: "Initializing Rust analyzer...", delay: 500 },
-    { text: "Scanning 1,024 source files...", delay: 800 },
-    { text: "Building dependency adjacency list...", delay: 1200 },
-    { text: "Calculating D3 Force-Directed layout...", delay: 1000 },
-    { text: "Success: Discovered 4,281 connections.", delay: 500, class: "success" },
-    { text: "Opening http://localhost:8000 ...", delay: 800 }
+    { text: "Establishing secure context...", delay: 800 },
+    { text: "[INIT] Initializing deep BFS scanner...", delay: 400 },
+    { text: "[SEC] Verifying Ed25519 signatures...", delay: 600 },
+    { text: "[SEC] Root of Trust confirmed.", delay: 300 },
+    { text: "PARSING: Found 142 distinct modules.", delay: 600 },
+    { text: "LINKING: Resolving cross-references...", delay: 1000 },
+    { text: "MAP: Topological sort complete.", delay: 400 },
+    { text: "[SUCCESS] Graph generated in 8ms.", delay: 800, class: "success" },
+    { text: "Streaming to http://localhost:8080", delay: 1000 }
 ];
 
 async function runTerminalSim() {

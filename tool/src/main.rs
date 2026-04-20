@@ -21,6 +21,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::fs;
 use storage::Storage;
 use tracing::info;
+use colored::Colorize;
+use std::time::Instant;
 
 #[cfg(windows)]
 use winreg::enums::*;
@@ -101,6 +103,22 @@ fn handle_install() -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn print_banner() {
+    let banner = r#"
+    
+     _______  ______    _______  _______  __   __  __   __ 
+    |       ||    _ |  |   _   ||       ||  | |  ||  |_|  |
+    |    ___||   | ||  |  |_|  ||    ___||  |_|  ||       |
+    |   | __ |   |_||_ |       ||   |___ |       ||_     _|
+    |   ||  ||    __  ||       ||    ___||_     _|  |   |  
+    |   |_| ||   |  | ||   _   ||   |      |   |    |   |  
+    |_______||___|  |_||__| |__||___|      |___|    |___|
+    "#;
+    println!("{}", banner.bright_cyan());
+    println!("{}", "The Living Knowledge Graph for Modern Codebases".bright_black().italic());
+    println!();
 }
 
 #[cfg(feature = "self-update")]
@@ -202,7 +220,9 @@ fn resolve_parser(lang: &Language) -> Option<GenericParser> {
 }
 
 fn main() -> Result<()> {
+    print_banner();
     let parse_failures = AtomicUsize::new(0);
+    let start_time = Instant::now();
 
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -214,6 +234,7 @@ fn main() -> Result<()> {
 
     match &cli.command {
         Commands::Scan { dirs, ignore, format, output } => {
+            println!("{} {} ...", "INIT".bright_cyan().bold(), "Deep Structural Scan".white());
             for dir in dirs {
                 let p = Path::new(dir);
                 if !p.exists() {
@@ -305,7 +326,11 @@ fn main() -> Result<()> {
             }
             Storage::save_html(&graph, out_path)?;
 
-            println!("Analysis written to {}", out_path.display());
+            println!("\n{} Analysis written to {} in {:.2?}", 
+                "DONE".bright_green().bold(), 
+                out_path.display().to_string().cyan(),
+                start_time.elapsed()
+            );
         }
         Commands::Install => {
             handle_install()?;
