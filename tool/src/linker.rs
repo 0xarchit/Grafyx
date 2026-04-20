@@ -121,7 +121,7 @@ impl Linker {
                         graph.edges.push(crate::ir::Edge {
                             from_node_id: svc.id.clone(),
                             to_node_id: node.id.clone(),
-                            relation_type: crate::ir::RelationType::ServiceCall,
+                            relation_type: crate::ir::RelationType::Defines,
                         });
                     }
                     break;
@@ -221,14 +221,47 @@ impl Linker {
         for edge in std::mem::take(&mut graph.edges) {
             if edge.from_node_id == edge.to_node_id { continue; }
             
-            // Signature optimization: use references for hashing where possible
-            // but we need a stable key.
             let sig = (edge.from_node_id.clone(), edge.to_node_id.clone(), edge.relation_type.clone());
             if !unique_edges.contains(&sig) {
                 unique_edges.insert(sig);
                 final_edges.push(edge);
             }
         }
+        
+        // 4. Aggregate Service-to-Service dependencies
+        let mut service_edges = Vec::new();
+        {
+            // Build a map of Node ID -> Service ID for fast lookup
+            let mut node_to_svc_id = HashMap::new();
+            for node in &graph.nodes {
+                if !node.service.is_empty() && node.service != "global" {
+                    if let Some(svc) = services.iter().find(|s| s.name == node.service) {
+                        node_to_svc_id.insert(node.id.clone(), svc.id.clone());
+                    }
+                }
+            }
+
+            for edge in &final_edges {
+                if let (Some(u_svc), Some(v_svc)) = (node_to_svc_id.get(&edge.from_node_id), node_to_svc_id.get(&edge.to_node_id)) {
+                    if u_svc != v_svc {
+                        service_edges.push(crate::ir::Edge {
+                            from_node_id: u_svc.clone(),
+                            to_node_id: v_svc.clone(),
+                            relation_type: crate::ir::RelationType::ServiceCall,
+                        });
+                    }
+                }
+            }
+        }
+
+        for edge in service_edges {
+            let sig = (edge.from_node_id.clone(), edge.to_node_id.clone(), edge.relation_type.clone());
+            if !unique_edges.contains(&sig) {
+                unique_edges.insert(sig);
+                final_edges.push(edge);
+            }
+        }
+
         graph.edges = final_edges;
     }
 }

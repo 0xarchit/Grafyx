@@ -1,4 +1,4 @@
-#![deny(unsafe_code)]
+#![allow(unsafe_code)]
 
 use grafyx::cli::{Cli, Commands, OutputFormat};
 use grafyx::ir::{Graph, Node, Edge};
@@ -13,6 +13,7 @@ use clap::Parser;
 use std::path::Path;
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::collections::HashSet;
 use std::fs;
 use tracing::info;
 use colored::Colorize;
@@ -40,7 +41,7 @@ fn handle_install() -> Result<()> {
     
     #[cfg(windows)]
     {
-        let install_dir = home_dir.join("AppData").join("Local").join("grafyx").join("bin");
+        let install_dir = home_dir.join("AppData").join("Roaming").join("grafyx").join("bin");
         fs::create_dir_all(&install_dir).context("Failed to create installation directory")?;
         let dest = install_dir.join("grafyx.exe");
         
@@ -58,7 +59,11 @@ fn handle_install() -> Result<()> {
                     format!("{};{}", current_path, install_path_str) 
                 };
                 env.set_value("Path", &updated_path).context("Failed to update PATH")?;
+                
+                broadcast_setting_change();
+                
                 println!("{} Installation complete! Binary copied to {}", "SUCCESS".green().bold(), install_path_str.cyan());
+                println!("{} New terminal windows (including VS Code) will now recognize 'grafyx'.", "INFO".yellow().bold());
             } else {
                 println!("{} Grafyx is already in your PATH.", "INFO".yellow().bold());
             }
@@ -80,7 +85,10 @@ fn handle_install() -> Result<()> {
             fs::set_permissions(&dest, perms)?;
         }
         
-        let shells = [".bashrc", ".zshrc", ".profile", ".zprofile"];
+        let shells = [
+            ".bashrc", ".zshrc", ".profile", ".zprofile", 
+            ".bash_profile", ".bash_login"
+        ];
         let marker = "# GRAFYX_ENV_START";
         let path_line = format!("\n{} \nexport PATH=\"$PATH:{}\"\n# GRAFYX_ENV_END\n", marker, install_dir.display());
 
@@ -110,10 +118,12 @@ fn handle_uninstall() -> Result<()> {
 
     #[cfg(windows)]
     {
-        let install_dir = home_dir.join("AppData").join("Local").join("grafyx");
-        if install_dir.exists() {
-            fs::remove_dir_all(&install_dir).context("Failed to remove installation directory")?;
-        }
+        let install_dir = home_dir.join("AppData").join("Roaming").join("grafyx");
+        let bin_dir = install_dir.join("bin");
+        
+        // Check if we are running from the installation directory
+        let current_exe = std::env::current_exe().ok();
+        let is_running_from_install = current_exe.as_ref().map_or(false, |p| p.starts_with(&bin_dir));
 
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         if let Ok(env) = hkcu.open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE) {
@@ -125,9 +135,33 @@ fn handle_uninstall() -> Result<()> {
             
             if updated_path != current_path {
                 env.set_value("Path", &updated_path).context("Failed to clean PATH")?;
+                broadcast_setting_change();
             }
         }
-        println!("{} Uninstallation complete. Registries and binaries cleaned.", "SUCCESS".green().bold());
+
+        if install_dir.exists() {
+            if is_running_from_install {
+                println!("{} Running from installation directory. Spawning cleanup script...", "INFO".yellow().bold());
+                
+                let target_dir = install_dir.to_string_lossy();
+                // Windows trick: Rename the running exe and spawn a cmd to delete the folder after a delay
+                let script = format!(
+                    "timeout /t 1 /nobreak > NUL && rd /s /q \"{}\"",
+                    target_dir
+                );
+                
+                std::process::Command::new("cmd")
+                    .args(&["/C", &script])
+                    .spawn()
+                    .context("Failed to spawn cleanup script")?;
+                
+                println!("{} Uninstallation scheduled. The installation directory will be removed momentarily.", "SUCCESS".green().bold());
+                std::process::exit(0);
+            } else {
+                fs::remove_dir_all(&install_dir).context("Failed to remove installation directory")?;
+                println!("{} Uninstallation complete. Registries and binaries cleaned.", "SUCCESS".green().bold());
+            }
+        }
     }
 
     #[cfg(not(windows))]
@@ -137,7 +171,10 @@ fn handle_uninstall() -> Result<()> {
             fs::remove_file(&dest).context("Failed to remove binary")?;
         }
 
-        let shells = [".bashrc", ".zshrc", ".profile", ".zprofile"];
+        let shells = [
+            ".bashrc", ".zshrc", ".profile", ".zprofile",
+            ".bash_profile", ".bash_login"
+        ];
         let marker_start = "# GRAFYX_ENV_START";
         let marker_end = "# GRAFYX_ENV_END";
 
@@ -294,9 +331,70 @@ fn resolve_parser(lang: &Language) -> Option<GenericParser> {
     }
 }
 
+fn discover_services(roots: &[String]) -> Vec<String> {
+    let mut services = HashSet::new();
+    let markers = ["package.json", "Cargo.toml", "go.mod", "pyproject.toml", "requirements.txt", "pom.xml", "build.gradle"];
+
+    for root in roots {
+        let root_path = Path::new(root);
+        if !root_path.exists() { continue; }
+
+        // Check root itself
+        for marker in &markers {
+            if root_path.join(marker).exists() {
+                services.insert(root_path.to_string_lossy().to_string());
+                break;
+            }
+        }
+
+        // Look deeper for common monorepo patterns (one level down)
+        if let Ok(entries) = fs::read_dir(root_path) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                    if ["node_modules", "target", "build", "dist", ".git", ".idea", ".vscode"].contains(&name) {
+                        continue;
+                    }
+
+                    // Check if this dir or its immediate children are services
+                    for marker in &markers {
+                        if path.join(marker).exists() {
+                            services.insert(path.to_string_lossy().to_string());
+                            break;
+                        }
+                    }
+
+                    // Check one more level if it's a known container like 'packages' or 'apps'
+                    if name == "packages" || name == "apps" {
+                        if let Ok(sub_entries) = fs::read_dir(&path) {
+                            for sub_entry in sub_entries.flatten() {
+                                let sub_path = sub_entry.path();
+                                if sub_path.is_dir() {
+                                    for marker in &markers {
+                                        if sub_path.join(marker).exists() {
+                                            services.insert(sub_path.to_string_lossy().to_string());
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if services.is_empty() {
+        roots.to_vec()
+    } else {
+        services.into_iter().collect()
+    }
+}
+
 fn main() -> Result<()> {
     print_banner();
-    let parse_failures = AtomicUsize::new(0);
     let start_time = Instant::now();
 
     tracing_subscriber::fmt()
@@ -330,13 +428,22 @@ fn main() -> Result<()> {
                 let _ = Storage::init_db(&conn);
             }
 
-            let scanner = Scanner::new(dirs.clone(), ignore.clone());
+            let scanner_dirs = dirs.clone();
+            let discovered = discover_services(&dirs);
+            if discovered.len() > dirs.len() {
+                println!("{} Detected {} sub-services in project structure.", "INFO".yellow().bold(), discovered.len());
+                // We keep scanner_dirs as the user requested root to ensure all files are scanned,
+                // but we pass discovered to the Linker to define service boundaries.
+            }
+
+            let scanner = Scanner::new(scanner_dirs.clone(), ignore.clone());
             let mut files = scanner.scan();
             
             // Ensure deterministic ordering across runs
             files.sort_by(|a, b| a.0.cmp(&b.0));
             
             let total_files = files.len();
+            let parse_failures = AtomicUsize::new(0);
 
             let results: Vec<(String, String, Vec<Node>, Vec<Edge>, bool)> = files.into_par_iter().map(|(file_path, lang)| {
                 let file_path_str = file_path.to_string_lossy().to_string();
@@ -387,7 +494,7 @@ fn main() -> Result<()> {
             let fail_count = parse_failures.load(Ordering::Relaxed);
             info!("Scan complete. Total files: {}, Cached: {}, Failed: {}", total_files, skipped_count, fail_count);
 
-            let linker = Linker::new(dirs.clone());
+            let linker = Linker::new(discovered);
             linker.link(&mut graph);
 
             let sqlite_saved = match format {
@@ -433,5 +540,26 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(windows)]
+fn broadcast_setting_change() {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SendMessageTimeoutW, HWND_BROADCAST, WM_SETTINGCHANGE, SMTO_ABORTIFHUNG,
+    };
+    use windows_sys::Win32::Foundation::LPARAM;
+
+    let env = "Environment\0".encode_utf16().collect::<Vec<u16>>();
+    unsafe {
+        SendMessageTimeoutW(
+            HWND_BROADCAST,
+            WM_SETTINGCHANGE,
+            0,
+            env.as_ptr() as LPARAM,
+            SMTO_ABORTIFHUNG,
+            5000,
+            std::ptr::null_mut(),
+        );
+    }
 }
 

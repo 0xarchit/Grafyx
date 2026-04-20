@@ -34,49 +34,88 @@ pub struct Scanner {
 impl Scanner {
     pub fn new(dirs: Vec<String>, ignore_patterns: Option<Vec<String>>) -> Self {
         let mut ignores = vec![
-            // Global / General
+            // Global / OS
             ".git".to_string(),
             ".idea".to_string(),
             ".vscode".to_string(),
-            "target".to_string(),
-            "build".to_string(),
-            "dist".to_string(),
-            "out".to_string(),
-            "node_modules".to_string(),
-            "vendor".to_string(),
-            "bin".to_string(),
-            "pkg".to_string(),
+            ".DS_Store".to_string(),
+            "Thumbs.db".to_string(),
             "tmp".to_string(),
             "temp".to_string(),
+            "*.log".to_string(),
+            "*.tmp".to_string(),
+            "*.swp".to_string(),
+            "*.bak".to_string(),
+            "*.lock".to_string(),
+
+            // Rust / C++
+            "target".to_string(),
+            "**/*.rs.bk".to_string(),
+            "cargo-home".to_string(),
+
+            // JavaScript / TypeScript / Frontend
+            "node_modules".to_string(),
+            "dist".to_string(),
+            "build".to_string(),
+            "out".to_string(),
+            ".next".to_string(),
+            ".nuxt".to_string(),
+            ".svelte-kit".to_string(),
+            ".turbo".to_string(),
+            ".vite".to_string(),
+            ".parcel-cache".to_string(),
+            ".cache".to_string(),
+            ".vercel".to_string(),
+            ".netlify".to_string(),
+            ".docusaurus".to_string(),
+            "coverage".to_string(),
+            "bower_components".to_string(),
+            "storybook-static".to_string(),
+
+            // Python
             "__pycache__".to_string(),
             "venv".to_string(),
             ".venv".to_string(),
             "env".to_string(),
             ".env".to_string(),
-            "coverage".to_string(),
-            "*.log".to_string(),
-            "*.tmp".to_string(),
-            "*.swp".to_string(),
-            "*.lock".to_string(),
-            "*.class".to_string(),
-            "*.test".to_string(),
-            "**/*.rs.bk".to_string(),
-            
-            // Framework Specific
-            ".next".to_string(),
-            ".nuxt".to_string(),
-            ".cache".to_string(),
-            ".parcel-cache".to_string(),
-            ".svelte-kit".to_string(),
-            ".turbo".to_string(),
-            ".vite".to_string(),
+            "virtualenv".to_string(),
             ".pytest_cache".to_string(),
             ".mypy_cache".to_string(),
             ".ruff_cache".to_string(),
-            ".hypothesis".to_string(),
             ".tox".to_string(),
             ".nox".to_string(),
+            ".hypothesis".to_string(),
+            "htmlcov".to_string(),
+            ".coverage".to_string(),
+            "*.pyc".to_string(),
+            "*.pyo".to_string(),
+            "*.pyd".to_string(),
+            ".ipynb_checkpoints".to_string(),
+
+            // Go
+            "vendor".to_string(),
+            "bin".to_string(),
+            "pkg".to_string(),
+            ".gocache".to_string(),
+
+            // Java / Kotlin / Android
             ".gradle".to_string(),
+            ".m2".to_string(),
+            "*.class".to_string(),
+            "*.jar".to_string(),
+            "*.war".to_string(),
+            "*.ear".to_string(),
+            ".apt_generated".to_string(),
+            ".settings".to_string(),
+            ".project".to_string(),
+            ".classpath".to_string(),
+            "local.properties".to_string(),
+
+            // Mobile / Others
+            ".expo".to_string(),
+            ".output".to_string(),
+            "Pods".to_string(),
+            ".dart_tool".to_string(),
         ];
         if let Some(custom) = ignore_patterns {
             ignores.extend(custom);

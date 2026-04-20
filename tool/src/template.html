@@ -441,10 +441,11 @@
         };
 
         const EDGE_COLORS = {
-            RootLink: 'rgba(255,255,255,0.4)',  // Normal White
-            ServiceCall: 'rgba(100,255,180,0.6)',  // Vibrant Green
-            Imports: 'rgba(140,240,150,0.4)',  // Soft Green
-            Calls: 'rgba(220,255,220,0.3)',  // Greenish White
+            rootlink: 'rgba(255,255,255,0.4)',  // Normal White
+            defines: 'rgba(255,255,255,0.15)', // Light Structural Link
+            servicecall: 'rgba(100,255,180,0.8)',  // Thick Architectural Green
+            imports: 'rgba(140,240,150,0.4)',  // Soft Green
+            calls: 'rgba(220,255,220,0.3)',  // Greenish White
             default: 'rgba(255,255,255,0.25)' // Normal White
         };
 
@@ -488,7 +489,7 @@
 
 
         const serviceSet = new Set();
-        RAW.nodes.forEach(n => { if (n.kind === 'Service') serviceSet.add(n.service); });
+        RAW.nodes.forEach(n => { if (n.kind === 'service') serviceSet.add(n.service); });
         document.getElementById('st-services').innerText = serviceSet.size;
 
         const datalist = document.getElementById('search-list');
@@ -499,38 +500,38 @@
         });
 
         function nodeColor(n) {
-            if (n.kind === 'Root') return COLORS.root;
-            if (n.kind === 'Service') return COLORS.service;
+            if (n.kind === 'root') return COLORS.root;
+            if (n.kind === 'service') return COLORS.service;
             return COLORS[n.language] || COLORS.default;
         }
 
         function nodeRadius(n, zoom) {
             let base;
             switch (n.kind) {
-                case 'Root': base = 8; break;
-                case 'Service': base = 6; break;
-                case 'File':
-                case 'Module': base = 4; break;
+                case 'root': base = 8; break;
+                case 'service': base = 6; break;
+                case 'file':
+                case 'module': base = 4; break;
                 default: base = 2.5; break;
             }
             return base;
         }
 
         function isVisible(n) {
-            if (n.kind === 'Root' || n.kind === 'Service') return true;
+            if (n.kind === 'root' || n.kind === 'service') return true;
             const z = state.zoom;
 
-            if (n.kind === 'File' || n.kind === 'Module') {
-                if (!state.showFiles && n.kind === 'File') return false;
+            if (n.kind === 'file' || n.kind === 'module') {
+                if (!state.showFiles && n.kind === 'file') return false;
                 if (z < 0.1) return false;
                 return true;
             }
-            if (n.kind === 'Function') {
+            if (n.kind === 'function') {
                 if (!state.showFuncs) return false;
                 if (z < 0.5) return false;
                 return true;
             }
-            if (n.kind === 'Class') {
+            if (n.kind === 'class') {
                 if (!state.showClasses) return false;
                 if (z < 0.3) return false;
                 return true;
@@ -545,11 +546,11 @@
             const visEdges = RAW.edges.filter(e => {
                 const a = edgeId(e, 'from'), b = edgeId(e, 'to');
                 if (!visSet.has(a) || !visSet.has(b)) return false;
-                if (!state.showImports && e.relation_type === 'Imports') return false;
-                if (!state.showCalls && e.relation_type === 'Calls') return false;
+                if (!state.showImports && e.relation_type === 'imports') return false;
+                if (!state.showCalls && e.relation_type === 'calls') return false;
                 return true;
             }).map(e => {
-                const w = { RootLink: 6, ServiceCall: 4, Imports: 2.5, Calls: 1.5 }[e.relation_type] || 1;
+                const w = { rootlink: 6, defines: 4, servicecall: 8, imports: 2.5, calls: 1.5 }[e.relation_type] || 1;
                 return { ...e, _w: w };
             });
 
@@ -564,9 +565,9 @@
             .nodeId('id')
             .nodeRelSize(1)
             .nodeVal(n => {
-                if (n.kind === 'Root') return 64;
-                if (n.kind === 'Service') return 36;
-                if (n.kind === 'File' || n.kind === 'Module') return 16;
+                if (n.kind === 'root') return 64;
+                if (n.kind === 'service') return 36;
+                if (n.kind === 'file' || n.kind === 'module') return 16;
                 return 6;
             })
             .nodeColor(nodeColor)
@@ -582,17 +583,18 @@
                 return 'rgba(80,80,80,0.06)';
             })
             .linkWidth(e => {
-                const base = e.relation_type === 'RootLink' ? 0.5 :
-                    e.relation_type === 'ServiceCall' ? 1.5 :
-                        e.relation_type === 'Imports' ? 0.8 : 0.5;
+                const base = e.relation_type === 'rootlink' ? 0.3 :
+                    e.relation_type === 'servicecall' ? 3.0 :
+                    e.relation_type === 'defines' ? 0.6 :
+                    e.relation_type === 'imports' ? 0.8 : 0.5;
                 if (!state.focus && !state.hover) return base;
                 const active = state.focus || state.hover;
                 const a = e.source.id || e.source, b = e.target.id || e.target;
                 return (a === active.id || b === active.id) ? base + 0.8 : base * 0.3;
             })
 
-            .linkLineDash(e => e.relation_type === 'Calls' ? [2, 2] : null)
-            .linkDirectionalArrowLength(e => state.arrows && e.relation_type !== 'RootLink' ? 3 : 0)
+            .linkLineDash(e => e.relation_type === 'calls' ? [2, 2] : null)
+            .linkDirectionalArrowLength(e => state.arrows && e.relation_type !== 'rootlink' ? 3 : 0)
             .linkDirectionalArrowRelPos(1)
             .enableNodeDrag(true)
             .onNodeDrag(() => {
@@ -655,7 +657,7 @@
 
                 const isHovered = state.hover && state.hover.id === n.id;
                 const isFocused = state.focus && state.focus.id === n.id;
-                const isAlwaysLabelled = n.kind === 'Root' || n.kind === 'Service';
+                const isAlwaysLabelled = n.kind === 'root' || n.kind === 'service';
 
                 let showLabel = false;
                 const lm = state.labelMode;
@@ -667,15 +669,15 @@
                     showLabel = isAlwaysLabelled || isHovered || isFocused;
                 } else {
                     showLabel = isAlwaysLabelled ||
-                        (z > 0.3 && (n.kind === 'File' || n.kind === 'Module')) ||
-                        (z > 1.2 && n.kind === 'Function') ||
+                        (z > 0.3 && (n.kind === 'file' || n.kind === 'module')) ||
+                        (z > 1.2 && n.kind === 'function') ||
                         isHovered || isFocused;
                 }
 
 
                 if (showLabel) {
                     const fs = Math.min(Math.max(10 / z, 2), 16);
-                    ctx.font = `${n.kind === 'Root' || n.kind === 'Service' ? 600 : 400} ${fs}px Inter, sans-serif`;
+                    ctx.font = `${n.kind === 'root' || n.kind === 'service' ? 600 : 400} ${fs}px Inter, sans-serif`;
                     ctx.textAlign = 'left';
                     ctx.textBaseline = 'middle';
                     ctx.fillStyle = `rgba(200,202,210,${alpha * 0.85})`;
@@ -753,8 +755,9 @@
                 if (link) {
                     link.distance(e => state.dist / (e._w || 1))
                         .strength(e => {
-                            if (e.relation_type === 'RootLink') return 0.6;
-                            if (e.relation_type === 'ServiceCall') return 0.4;
+                            if (e.relation_type === 'rootlink') return 0.6;
+                            if (e.relation_type === 'servicecall') return 0.7; // Stronger service links
+                            if (e.relation_type === 'defines') return 0.4;
                             return 0.1;
                         });
                 }
@@ -802,7 +805,7 @@
                 Graph.graphData().nodes.forEach(pn => prevMap.set(pn.id, pn));
             }
 
-            const serviceList = nodes.filter(n => n.kind === 'Service');
+            const serviceList = nodes.filter(n => n.kind === 'service');
             const nSvc = serviceList.length;
             const serviceAngle = {};
             serviceList.forEach((s, i) => {
@@ -816,9 +819,9 @@
                     out.x = prev.x; out.y = prev.y;
                     out.vx = prev.vx; out.vy = prev.vy;
                 } else {
-                    if (n.kind === 'Root') {
+                    if (n.kind === 'root') {
                         out.x = 0; out.y = 0;
-                    } else if (n.kind === 'Service') {
+                    } else if (n.kind === 'service') {
                         const a = serviceAngle[n.service] || 0;
                         const r = Math.max(200, nSvc * 35);
                         out.x = r * Math.cos(a);
@@ -877,10 +880,10 @@
             state.replaying = true;
 
             const { nodes, edges } = computeGraph();
-            const roots = nodes.filter(n => n.kind === 'Root');
-            const svcs = nodes.filter(n => n.kind === 'Service');
-            const files = nodes.filter(n => n.kind === 'File' || n.kind === 'Module');
-            const rest = nodes.filter(n => !['Root', 'Service', 'File', 'Module'].includes(n.kind));
+            const roots = nodes.filter(n => n.kind === 'root');
+            const svcs = nodes.filter(n => n.kind === 'service');
+            const files = nodes.filter(n => n.kind === 'file' || n.kind === 'module');
+            const rest = nodes.filter(n => !['root', 'service', 'file', 'module'].includes(n.kind));
             const ordered = [...roots, ...svcs, ...files, ...rest];
 
             const serviceList = svcs;
@@ -891,8 +894,8 @@
             });
 
             function initPos(n, i) {
-                if (n.kind === 'Root') return { x: 0, y: 0 };
-                if (n.kind === 'Service') {
+                if (n.kind === 'root') return { x: 0, y: 0 };
+                if (n.kind === 'service') {
                     const a = serviceAngle[n.service] || 0;
                     const r = Math.max(200, nSvc * 35);
                     return { x: r * Math.cos(a), y: r * Math.sin(a) };

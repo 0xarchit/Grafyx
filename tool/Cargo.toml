@@ -23,8 +23,8 @@ home = "0.5"
 anyhow = "1.0"
 blake3 = "=1.8.2"
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
-openssl = { version = "0.10", features = ["vendored"] }
-zeroize = { version = "1.7", features = ["derive"] }
+    # Removed openssl-vendored to allow pure-rust build with rustls
+    zeroize = { version = "1.7", features = ["derive"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 base64 = "0.22"
 colored = "2.1"
@@ -40,6 +40,13 @@ default = ["self-update"]
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"
+windows-sys = { version = "0.52", features = [
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Foundation",
+] }
+
+[target.'cfg(target_env = "musl")'.dependencies]
+openssl = { version = "0.10", features = ["vendored"] }
 
 [profile.release]
 opt-level = 'z'
