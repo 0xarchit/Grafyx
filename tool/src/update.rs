@@ -6,9 +6,13 @@ use base64::prelude::*;
 pub const PUBLIC_KEY_BASE64: &str = "clejACfR3BvqIUnmJARgypZrxI+aGVSJ91NbB2ymckM=";
 
 pub fn verify_signature(binary_path: &Path, signature_bytes: &[u8]) -> Result<()> {
+    verify_signature_with_key(binary_path, signature_bytes, PUBLIC_KEY_BASE64)
+}
+
+pub fn verify_signature_with_key(binary_path: &Path, signature_bytes: &[u8], public_key_b64: &str) -> Result<()> {
     let binary_data = std::fs::read(binary_path).context("Failed to read binary for verification")?;
     
-    let key_bytes = BASE64_STANDARD.decode(PUBLIC_KEY_BASE64).context("Failed to decode public key")?;
+    let key_bytes = BASE64_STANDARD.decode(public_key_b64).context("Failed to decode public key")?;
     let verifying_key = VerifyingKey::from_bytes(key_bytes.as_slice().try_into().context("Invalid public key length")?)
         .context("Failed to initialize verifying key")?;
         

@@ -142,9 +142,16 @@ impl CodeParser for GenericParser {
             end_line,
         });
         
-        if let Ok(query) = Query::new(&self.language, self.query_str) {
-            let mut cursor = QueryCursor::new();
-            let mut matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
+        let query = match Query::new(&self.language, self.query_str) {
+            Ok(q) => q,
+            Err(e) => {
+                tracing::debug!("Query compilation failed for {}: {}", self.lang_name, e);
+                return Ok((nodes, edges));
+            }
+        };
+
+        let mut cursor = QueryCursor::new();
+        let mut matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
             
             while let Some(m) = matches.next() {
                 for capture in m.captures {
@@ -181,7 +188,7 @@ impl CodeParser for GenericParser {
                     }
                 }
             }
-        }
+
         
         Ok((nodes, edges))
     }

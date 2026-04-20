@@ -93,6 +93,7 @@ class GrafyxBackground {
                 const dy = node.y - this.mouse.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 if (dist < 150) {
+                    if (dist === 0) return; // Skip if directly on node
                     const force = (150 - dist) / 150;
                     node.vx += dx / dist * force * 0.8;
                     node.vy += dy / dist * force * 0.8;
@@ -142,6 +143,9 @@ async function runTerminalSim() {
 // Magnetic Buttons
 function magneticButtons() {
     document.querySelectorAll('.btn').forEach(btn => {
+        btn.addEventListener('mouseenter', () => {
+            btn.style.transition = 'background 0.3s, box-shadow 0.3s';
+        });
         btn.addEventListener('mousemove', (e) => {
             const rect = btn.getBoundingClientRect();
             const x = e.clientX - rect.left - rect.width / 2;
@@ -149,6 +153,7 @@ function magneticButtons() {
             btn.style.transform = `translate(${x * 0.2}px, ${y * 0.2}px)`;
         });
         btn.addEventListener('mouseleave', () => {
+            btn.style.transition = '';
             btn.style.transform = ``;
         });
     });
@@ -203,7 +208,7 @@ class GrafyxInstaller {
     async fetchRepoStats() {
         try {
             const response = await fetch(`https://api.github.com/repos/${this.repo}`);
-            if (!response.ok) throw new Error();
+            if (!response.ok) throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
             const data = await response.json();
             const count = data.stargazers_count;
             const formatted = count > 999 ? (count / 1000).toFixed(1) + 'k' : count;
@@ -216,7 +221,7 @@ class GrafyxInstaller {
     async fetchRelease() {
         try {
             const response = await fetch(`https://api.github.com/repos/${this.repo}/releases/latest`);
-            if (!response.ok) throw new Error('API Rate Limit or Error');
+            if (!response.ok) throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
             this.releaseData = await response.json();
         } catch (e) {
             console.warn('GitHub API failed, using fallback URLs');
@@ -314,15 +319,28 @@ function customCursor() {
     const outline = document.querySelector('.cursor-outline');
     if (!dot || !outline) return;
 
+    let animationFrameId = null;
+    let targetX = 0, targetY = 0;
+
+    const animateOutline = () => {
+        outline.style.left = `${targetX}px`;
+        outline.style.top = `${targetY}px`;
+        animationFrameId = null;
+    };
+
     window.addEventListener('mousemove', (e) => {
         dot.style.left = `${e.clientX}px`;
         dot.style.top = `${e.clientY}px`;
         
-        outline.animate({
-            left: `${e.clientX}px`,
-            top: `${e.clientY}px`
-        }, { duration: 500, fill: "forwards" });
+        targetX = e.clientX;
+        targetY = e.clientY;
+        
+        if (!animationFrameId) {
+            animationFrameId = requestAnimationFrame(animateOutline);
+        }
     });
+
+    document.body.style.cursor = 'none';
 
     document.querySelectorAll('a, button, .card').forEach(el => {
         el.addEventListener('mouseenter', () => {

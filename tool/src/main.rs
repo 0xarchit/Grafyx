@@ -1,25 +1,19 @@
 #![deny(unsafe_code)]
 
-mod cli;
-mod ir;
-mod linker;
-mod parser;
-mod scanner;
-mod storage;
-mod update;
+use grafyx::cli::{Cli, Commands, OutputFormat};
+use grafyx::ir::{Graph, Node, Edge};
+use grafyx::linker::Linker;
+use grafyx::parser::{generic::GenericParser, CodeParser};
+use grafyx::scanner::{Language, Scanner};
+use grafyx::storage::Storage;
+use grafyx::update;
 
 use anyhow::{bail, Context, Result};
 use clap::Parser;
-use cli::{Cli, Commands};
-use ir::{Graph, Node, Edge};
 use std::path::Path;
-use linker::Linker;
-use parser::{generic::GenericParser, CodeParser};
 use rayon::prelude::*;
-use scanner::{Language, Scanner};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::fs;
-use storage::Storage;
 use tracing::info;
 use colored::Colorize;
 use std::time::Instant;
@@ -383,13 +377,13 @@ fn main() -> Result<()> {
             linker.link(&mut graph);
 
             match format {
-                cli::OutputFormat::Json => {
+                OutputFormat::Json => {
                     Storage::save_json(&graph, out_path)?;
                 }
-                cli::OutputFormat::Sqlite => {
+                OutputFormat::Sqlite => {
                     Storage::save_sqlite(&graph, out_path)?;
                 }
-                cli::OutputFormat::Both => {
+                OutputFormat::Both => {
                     Storage::save_json(&graph, out_path)?;
                     Storage::save_sqlite(&graph, out_path)?;
                 }

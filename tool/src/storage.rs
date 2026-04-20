@@ -112,6 +112,8 @@ impl Storage {
         }
 
         // Efficiently load edges for all nodes in this file using a single query
+        // Note: Only loads outgoing edges (from_node_id matches) for incremental caching.
+        // Incoming edges are loaded when their source files are processed.
         if !nodes.is_empty() {
             let mut stmt = conn.prepare("
                 SELECT from_node_id, to_node_id, relation_type 

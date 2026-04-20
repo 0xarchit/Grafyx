@@ -47,7 +47,7 @@ jobs:
           if [ -f "tool/release.json" ] && jq -e --arg v "$VERSION" '.[$v]' tool/release.json > /dev/null; then
             NOTE=$(jq -r --arg v "$VERSION" '.[$v].Note // ""' tool/release.json)
             DESC=$(jq -r --arg v "$VERSION" '.[$v].Description // ""' tool/release.json)
-            FEATS=$(jq -r --arg v "$VERSION" '.[$v].Features[] // empty' tool/release.json | sed 's/^/- /')
+            FEATS=$(jq -r --arg v "$VERSION" '(.[$v].Features // [])[]' tool/release.json | sed 's/^/- /')
             
             echo "BODY<<EOF" >> $GITHUB_OUTPUT
             [ ! -z "$NOTE" ] && echo "$NOTE" >> $GITHUB_OUTPUT && echo "" >> $GITHUB_OUTPUT
@@ -102,8 +102,9 @@ jobs:
         env:
           GRAFYX_RELEASE_SIGNING_KEY: ${{ secrets.GRAFYX_RELEASE_SIGNING_KEY }}
         run: |
-          cargo run --release --bin sign dist/${{ matrix.asset_name }}
-          cargo run --release --bin sign dist/${{ matrix.asset_name }}.${{ matrix.archive_ext }}
+          cargo build --release --bin sign
+          ./target/release/sign dist/${{ matrix.asset_name }}
+          ./target/release/sign dist/${{ matrix.asset_name }}.${{ matrix.archive_ext }}
 
       - name: Release
         uses: softprops/action-gh-release@v2

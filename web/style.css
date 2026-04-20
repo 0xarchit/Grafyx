@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
+@import 'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap';
 
 :root {
     --bg: #030407;
@@ -28,7 +28,7 @@
     margin-bottom: 2rem;
     opacity: 0;
     transform: translateY(20px);
-    animation: fadeInUp 0.8s forwards 0.2s;
+    animation: fade-in-up 0.8s forwards 0.2s;
 }
 
 .security-badge, .hero-tag {
@@ -88,10 +88,9 @@ body::after {
 body {
     background-color: var(--bg);
     color: var(--text);
-    font-family: 'Outfit', sans-serif;
+    font-family: Outfit, sans-serif;
     line-height: 1.6;
     overflow-x: hidden;
-    cursor: none;
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE and Edge */
     position: relative;
@@ -632,7 +631,7 @@ canvas#background-canvas {
 }
 
 .terminal-body .line.animate-fade-in {
-    animation: terminalLineFade 0.4s forwards;
+    animation: terminal-line-fade 0.4s forwards;
 }
 
 .terminal-body .prompt {
@@ -649,7 +648,7 @@ canvas#background-canvas {
     color: var(--accent);
 }
 
-@keyframes terminalLineFade {
+@keyframes terminal-line-fade {
     from { opacity: 0; transform: translateX(-10px); }
     to { opacity: 1; transform: translateX(0); }
 }
@@ -669,7 +668,7 @@ footer a {
 }
 
 /* Keyframes */
-@keyframes fadeInUp {
+@keyframes fade-in-up {
     from {
         opacity: 0;
         transform: translateY(30px);
@@ -680,10 +679,6 @@ footer a {
     }
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-    .grid { grid-template-columns: 1fr; }
-}
 
 /* Workflow Steps */
 .workflow-grid {
@@ -701,7 +696,7 @@ footer a {
     position: absolute;
     top: 1rem;
     right: 1.5rem;
-    font-family: 'Sora', sans-serif;
+    font-family: Sora, sans-serif;
     font-weight: 800;
     font-size: 3rem;
     opacity: 0.1;
@@ -710,7 +705,7 @@ footer a {
 }
 
 .workflow-step h4 {
-    font-family: 'Sora', sans-serif;
+    font-family: Sora, sans-serif;
     font-size: 1.25rem;
     margin-bottom: 1rem;
     color: var(--accent);

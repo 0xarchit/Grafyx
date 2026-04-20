@@ -99,7 +99,7 @@ impl Linker {
                         graph.edges.push(crate::ir::Edge {
                             from_node_id: svc.id.clone(),
                             to_node_id: node.id.clone(),
-                            relation_type: crate::ir::RelationType::RootLink,
+                            relation_type: crate::ir::RelationType::ServiceCall,
                         });
                     }
                     break;

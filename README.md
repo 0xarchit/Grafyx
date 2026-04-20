@@ -15,7 +15,7 @@
 Visualize Your Codebase Like Never Before
 ```
 
-<br>_*This project May have bug for now it is in Beta Phase*_
+<br>_*This project is in Beta and may have bugs*_
 
 </div>
 
@@ -113,9 +113,19 @@ Grafyx features a "Hot Update" physics engine inspired by tools like Obsidian. A
 
 Install Grafyx globally with a single command. The installer automatically configures your `PATH`.
 
-#### **Linux / macOS (Universal)**
+#### **Linux (AMD64)**
 ```bash
 curl -L https://github.com/0xarchit/grafyx/releases/latest/download/grafyx-linux-amd64-static -o grafyx && chmod +x grafyx && ./grafyx install && rm grafyx
+```
+
+#### **macOS (Apple Silicon)**
+```bash
+curl -L https://github.com/0xarchit/grafyx/releases/latest/download/grafyx-macos-aarch64 -o grafyx && chmod +x grafyx && ./grafyx install && rm grafyx
+```
+
+#### **macOS (Intel)**
+```bash
+curl -L https://github.com/0xarchit/grafyx/releases/latest/download/grafyx-macos-x86_64 -o grafyx && chmod +x grafyx && ./grafyx install && rm grafyx
 ```
 
 #### **Windows (PowerShell)**
@@ -137,6 +147,7 @@ cargo build --release
 Grafyx handles its own lifecycle and codebase mapping.
 
 ### Commands
+
 | Command | Alias | Description |
 |---------|-------|-------------|
 | `grafyx scan <path>` | - | Scans the directory and generates architectural models. |
@@ -172,7 +183,7 @@ See the [LICENSE](LICENSE) file for the full text and attribution requirements.
 
 ## ℡ Attribution
 
-Grafyx is originally created and maintained by **0xArchit**.
+Grafyx is created and maintained by **0xArchit**.
 
 If you build on top of this project, please provide proper attribution. Any derivative works must retain the original copyright notice in the license.
 
