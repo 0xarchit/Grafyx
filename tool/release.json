@@ -5,5 +5,14 @@
     "Features": [
       "Add support for Javascript, Typescript, Golang, Python, Rust"
     ]
+  },
+  "0.1.1": {
+    "Note": "[Beta release] may be unstable and has bugs",
+    "Description": "v0.1.1 release bug fix and performance improvements",
+    "Features": [
+      "improved support for Javascript, Typescript, Golang, Python, Rust",
+      "fix uninstallation",
+      "fix self-update"
+    ]
   }
 }
