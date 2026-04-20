@@ -31,6 +31,8 @@ pub enum Commands {
     },
     #[command(alias = "i")]
     Install,
+    #[command(alias = "un")]
+    Uninstall,
     #[cfg(feature = "self-update")]
     #[command(alias = "u")]
     Upgrade,

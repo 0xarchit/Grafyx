@@ -58,11 +58,15 @@ fn handle_install() -> Result<()> {
             let install_path_str = install_dir.to_string_lossy().to_string();
             
             if !current_path.split(';').any(|p| p == install_path_str) {
-                let updated_path = format!("{};{}", current_path, install_path_str);
+                let updated_path = if current_path.is_empty() { 
+                    install_path_str.clone() 
+                } else { 
+                    format!("{};{}", current_path, install_path_str) 
+                };
                 env.set_value("Path", &updated_path).context("Failed to update PATH")?;
-                println!("Installation complete! Grafyx has been added to your PATH.");
+                println!("{} Installation complete! Binary copied to {}", "SUCCESS".green().bold(), install_path_str.cyan());
             } else {
-                println!("Grafyx is already in your PATH.");
+                println!("{} Grafyx is already in your PATH.", "INFO".yellow().bold());
             }
         }
     }
@@ -82,15 +86,16 @@ fn handle_install() -> Result<()> {
             fs::set_permissions(&dest, perms)?;
         }
         
-        let shells = [".bashrc", ".zshrc", ".profile"];
-        let path_line = format!("\nexport PATH=\"$PATH:{}\"\n", install_dir.display());
+        let shells = [".bashrc", ".zshrc", ".profile", ".zprofile"];
+        let marker = "# GRAFYX_ENV_START";
+        let path_line = format!("\n{} \nexport PATH=\"$PATH:{}\"\n# GRAFYX_ENV_END\n", marker, install_dir.display());
 
         for shell in shells {
             let shell_path = home_dir.join(shell);
             if shell_path.exists() {
                 backup_file(&shell_path)?;
                 if let Ok(content) = fs::read_to_string(&shell_path) {
-                    if !content.contains(&install_dir.to_string_lossy().to_string()) {
+                    if !content.contains(marker) {
                         use std::io::Write;
                         let mut file = fs::OpenOptions::new()
                             .append(true)
@@ -101,6 +106,66 @@ fn handle_install() -> Result<()> {
                 }
             }
         }
+        println!("{} Installation complete! Binary copied to {}", "SUCCESS".green().bold(), install_dir.display().to_string().cyan());
+    }
+    Ok(())
+}
+
+fn handle_uninstall() -> Result<()> {
+    let home_dir = home::home_dir().context("Could not find home directory")?;
+
+    #[cfg(windows)]
+    {
+        let install_dir = home_dir.join("AppData").join("Local").join("grafyx");
+        if install_dir.exists() {
+            fs::remove_dir_all(&install_dir).context("Failed to remove installation directory")?;
+        }
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        if let Ok(env) = hkcu.open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE) {
+            let current_path: String = env.get_value("Path").unwrap_or_default();
+            let install_path_suffix = "grafyx\\bin";
+            
+            let parts: Vec<&str> = current_path.split(';').filter(|p| !p.ends_with(install_path_suffix)).collect();
+            let updated_path = parts.join(";");
+            
+            if updated_path != current_path {
+                env.set_value("Path", &updated_path).context("Failed to clean PATH")?;
+            }
+        }
+        println!("{} Uninstallation complete. Registries and binaries cleaned.", "SUCCESS".green().bold());
+    }
+
+    #[cfg(not(windows))]
+    {
+        let dest = home_dir.join(".local").join("bin").join("grafyx");
+        if dest.exists() {
+            fs::remove_file(&dest).context("Failed to remove binary")?;
+        }
+
+        let shells = [".bashrc", ".zshrc", ".profile", ".zprofile"];
+        let marker_start = "# GRAFYX_ENV_START";
+        let marker_end = "# GRAFYX_ENV_END";
+
+        for shell in shells {
+            let shell_path = home_dir.join(shell);
+            if shell_path.exists() {
+                if let Ok(content) = fs::read_to_string(&shell_path) {
+                    if content.contains(marker_start) {
+                        let lines: Vec<&str> = content.lines().collect();
+                        let mut new_lines = Vec::new();
+                        let mut skipping = false;
+                        for line in lines {
+                            if line.contains(marker_start) { skipping = true; continue; }
+                            if line.contains(marker_end) { skipping = false; continue; }
+                            if !skipping { new_lines.push(line); }
+                        }
+                        fs::write(&shell_path, new_lines.join("\n")).context("Failed to clean shell profile")?;
+                    }
+                }
+            }
+        }
+        println!("{} Uninstallation complete. Shell profiles and binaries cleaned.", "SUCCESS".green().bold());
     }
     Ok(())
 }
@@ -334,6 +399,9 @@ fn main() -> Result<()> {
         }
         Commands::Install => {
             handle_install()?;
+        }
+        Commands::Uninstall => {
+            handle_uninstall()?;
         }
         #[cfg(feature = "self-update")]
         Commands::Upgrade => {
