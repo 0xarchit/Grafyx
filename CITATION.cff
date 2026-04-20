@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "0xArchit"
+    given-names: "Archit"
+    alias: "0xarchit"
+    website: "https://0xarchit.is-a.dev"
+title: "Grafyx - Code Knowledge Graph Tool"
+version: 0.1.0
+date-released: 2026-04-19
+url: "https://grafyx.0xarchit.is-a.dev"
+repository-code: "https://github.com/0xarchit/grafyx"
+license: "Apache-2.0"
+keywords:
+  - "rust"
+  - "graph"
+  - "visualization"
+  - "d3"
+  - "codebase-analysis"
+  - "physics-engine"

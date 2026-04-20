@@ -1,0 +1,147 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Artifacts
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: grafyx
+            asset_name: grafyx-linux-amd64-static
+            archive_ext: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: grafyx
+            asset_name: grafyx-macos-aarch64
+            archive_ext: tar.gz
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: grafyx
+            asset_name: grafyx-macos-x86_64
+            archive_ext: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: grafyx.exe
+            asset_name: grafyx-windows-amd64.exe
+            archive_ext: zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tool -> target
+
+      - name: Install Linux Dependencies
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Run Tests
+        if: matrix.target != 'aarch64-apple-darwin'
+        working-directory: tool
+        run: cargo test --release --target ${{ matrix.target }}
+
+      - name: Build Release
+        working-directory: tool
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package Binaries (Unix)
+        if: matrix.os != 'windows-latest'
+        working-directory: tool
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
+          tar -czvf dist/${{ matrix.asset_name }}.tar.gz -C dist ${{ matrix.asset_name }}
+
+      - name: Package Binaries (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        working-directory: tool
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
+          Compress-Archive -Path dist/${{ matrix.asset_name }} -DestinationPath dist/${{ matrix.asset_name }}.zip
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.target }}
+          path: tool/dist/
+
+  sign_and_release:
+    name: Sign and Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Release Notes
+        id: notes
+        shell: bash
+        run: |
+          VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          if [ -f "tool/release.json" ] && jq -e --arg v "$VERSION" '.[$v]' tool/release.json > /dev/null; then
+            NOTE=$(jq -r --arg v "$VERSION" '.[$v].Note // ""' tool/release.json)
+            DESC=$(jq -r --arg v "$VERSION" '.[$v].Description // ""' tool/release.json)
+            FEATS=$(jq -r --arg v "$VERSION" '(.[$v].Features // [])[]' tool/release.json | sed 's/^/- /')
+            
+            echo "BODY<<EOF" >> $GITHUB_OUTPUT
+            [ ! -z "$NOTE" ] && echo "$NOTE" >> $GITHUB_OUTPUT && echo "" >> $GITHUB_OUTPUT
+            [ ! -z "$DESC" ] && echo "$DESC" >> $GITHUB_OUTPUT && echo "" >> $GITHUB_OUTPUT
+            [ ! -z "$FEATS" ] && echo "### Features" >> $GITHUB_OUTPUT && echo "$FEATS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "BODY=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Build Trusted Signer (Main Branch)
+        run: |
+          # Build terminal signer from a separate, trusted checkout of the main branch
+          # This prevents a malicious PR from modifying tool/src/bin/sign.rs to exfiltrate keys.
+          git clone --depth 1 --branch main https://github.com/0xarchit/grafyx.git $HOME/trusted-grafyx
+          cd $HOME/trusted-grafyx/tool
+          cargo build --release --bin sign
+          cp target/release/sign $GITHUB_WORKSPACE/tool/trusted-sign
+
+      - name: Sign and Collate
+        shell: bash
+        env:
+          GRAFYX_RELEASE_SIGNING_KEY: ${{ secrets.GRAFYX_RELEASE_SIGNING_KEY }}
+        run: |
+          mkdir -p final_dist
+          find artifacts -type f \( -name "grafyx-*" \) | while read file; do
+            filename=$(basename "$file")
+            cp "$file" "final_dist/$filename"
+            ./tool/trusted-sign "final_dist/$filename"
+          done
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ steps.notes.outputs.BODY }}
+          files: final_dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
