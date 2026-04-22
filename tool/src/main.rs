@@ -1,18 +1,28 @@
-#![allow(unsafe_code)]
+mod cli;
+mod ir;
+mod linker;
+mod parser;
+mod scanner;
+mod storage;
+mod update;
 
-use grafyx::cli::{Cli, Commands, OutputFormat};
-use grafyx::ir::{Graph, Node, Edge};
-use grafyx::linker::Linker;
-use grafyx::parser::{generic::GenericParser, CodeParser};
-use grafyx::scanner::{Language, Scanner};
-use grafyx::storage::Storage;
-use grafyx::update;
+
+
+
+
+use cli::{Cli, Commands, OutputFormat};
+use ir::{Graph, Node, Edge};
+use linker::Linker;
+use parser::{generic::GenericParser, CodeParser};
+use scanner::{Language, Scanner};
+use storage::Storage;
 
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use std::path::Path;
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::process::{Command, Stdio};
 use std::collections::HashSet;
 use std::fs;
 use tracing::info;
@@ -144,14 +154,18 @@ fn handle_uninstall() -> Result<()> {
                 println!("{} Running from installation directory. Spawning cleanup script...", "INFO".yellow().bold());
                 
                 let target_dir = install_dir.to_string_lossy();
-                // Windows trick: Rename the running exe and spawn a cmd to delete the folder after a delay
+                // Windows: We must use Stdio::null() to avoid shell hangs, and use start /B to detach.
+                // We use a slightly longer delay (2s) to ensure the current process has fully exited.
                 let script = format!(
-                    "timeout /t 1 /nobreak > NUL && rd /s /q \"{}\"",
+                    "timeout /t 2 /nobreak > NUL && if exist \"{0}\" rd /s /q \"{0}\"",
                     target_dir
                 );
                 
-                std::process::Command::new("cmd")
+                Command::new("cmd")
                     .args(&["/C", &script])
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
                     .spawn()
                     .context("Failed to spawn cleanup script")?;
                 
@@ -205,14 +219,14 @@ fn handle_uninstall() -> Result<()> {
 
 fn print_banner() {
     let banner = r#"
-    
-     _______  ______    _______  _______  __   __  __   __ 
-    |       ||    _ |  |   _   ||       ||  | |  ||  |_|  |
-    |    ___||   | ||  |  |_|  ||    ___||  |_|  ||       |
-    |   | __ |   |_||_ |       ||   |___ |       ||_     _|
-    |   ||  ||    __  ||       ||    ___||_     _|  |   |  
-    |   |_| ||   |  | ||   _   ||   |      |   |    |   |  
-    |_______||___|  |_||__| |__||___|      |___|    |___|
+=============================================================
+    ██████╗ ██████╗  █████╗ ███████╗██╗   ██╗██╗  ██╗
+   ██╔════╝ ██╔══██╗██╔══██╗██╔════╝╚██╗ ██╔╝╚██╗██╔╝
+   ██║  ███╗██████╔╝███████║█████╗   ╚████╔╝  ╚███╔╝ 
+   ██║   ██║██╔══██╗██╔══██║██╔══╝    ╚██╔╝   ██╔██╗ 
+   ╚██████╔╝██║  ██║██║  ██║██║        ██║   ██╔╝ ██╗
+    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝        ╚═╝   ╚═╝  ╚═╝
+=============================================================
     "#;
     println!("{}", banner.bright_cyan());
     println!("{}", "The Living Knowledge Graph for Modern Codebases".bright_black().italic());
@@ -307,7 +321,19 @@ fn resolve_parser(lang: &Language) -> Option<GenericParser> {
             tree_sitter_javascript::LANGUAGE.into(),
             "javascript",
         )),
+        Language::Jsx => Some(GenericParser::new(
+            tree_sitter_javascript::LANGUAGE.into(),
+            "jsx",
+        )),
         Language::TypeScript => Some(GenericParser::new(
+            tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+            "typescript",
+        )),
+        Language::Tsx => Some(GenericParser::new(
+            tree_sitter_typescript::LANGUAGE_TSX.into(),
+            "tsx",
+        )),
+        Language::Tx => Some(GenericParser::new(
             tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
             "typescript",
         )),
@@ -393,6 +419,139 @@ fn discover_services(roots: &[String]) -> Vec<String> {
     }
 }
 
+fn handle_scan(
+    dirs: Vec<String>,
+    ignore: Option<Vec<String>>,
+    format: OutputFormat,
+    output: String,
+    start_time: Instant,
+) -> Result<()> {
+    println!("{} {} ...", "INIT".bright_cyan().bold(), "Deep Structural Scan".white());
+    for dir in &dirs {
+        let p = Path::new(dir);
+        if !p.exists() {
+            bail!("Scanning target directory does not exist: {}", dir);
+        }
+        if !p.is_dir() {
+            bail!("Scanning target is not a directory: {}", dir);
+        }
+    }
+
+    let out_path = Path::new(&output);
+    if !out_path.exists() {
+        fs::create_dir_all(out_path).context("Failed to create output directory")?;
+    }
+
+    if let Ok(conn) = Storage::open_db(out_path) {
+        let _ = Storage::init_db(&conn);
+    }
+
+    let scanner_dirs = dirs.clone();
+    let discovered = discover_services(&dirs);
+    if discovered.len() > dirs.len() {
+        println!(
+            "{} Detected {} sub-services in project structure.",
+            "INFO".yellow().bold(),
+            discovered.len()
+        );
+    }
+
+    let scanner = Scanner::new(scanner_dirs.clone(), ignore.clone());
+    let mut files = scanner.scan();
+
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let total_files = files.len();
+    let parse_failures = AtomicUsize::new(0);
+
+    let results: Vec<(String, String, Vec<Node>, Vec<Edge>, bool)> = files
+        .into_par_iter()
+        .map(|(file_path, lang)| {
+            let file_path_str = file_path.to_string_lossy().to_string();
+            let conn = Storage::open_db(out_path).ok();
+
+            if let Ok(content) = fs::read_to_string(&file_path) {
+                let hash = blake3::hash(content.as_bytes()).to_hex().to_string();
+
+                if let Some(ref c) = conn {
+                    if let Some(old_hash) = Storage::get_file_hash(c, &file_path_str) {
+                        if old_hash == hash {
+                            if let Ok(data) = Storage::load_file_data(c, &file_path_str) {
+                                return (file_path_str, hash, data.0, data.1, true);
+                            }
+                        }
+                    }
+                }
+
+                if let Some(parser) = resolve_parser(&lang) {
+                    match parser.parse(&file_path, &content) {
+                        Ok((nodes, edges)) => {
+                            return (file_path_str, hash, nodes, edges, false);
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to parse {}: {}", file_path.display(), e);
+                            parse_failures.fetch_add(1, Ordering::Relaxed);
+                        }
+                    }
+                }
+            }
+
+            (file_path_str, "".to_string(), Vec::new(), Vec::new(), false)
+        })
+        .collect();
+
+    let mut graph = Graph::new();
+    let mut skipped_count = 0;
+    let mut pending_hashes = Vec::new();
+    for (file_path, hash, nodes, edges, skipped) in results {
+        graph.nodes.extend(nodes);
+        graph.edges.extend(edges);
+        if skipped {
+            skipped_count += 1;
+        } else if !hash.is_empty() {
+            pending_hashes.push((file_path, hash));
+        }
+    }
+
+    let fail_count = parse_failures.load(Ordering::Relaxed);
+    info!(
+        "Scan complete. Total files: {}, Cached: {}, Failed: {}",
+        total_files, skipped_count, fail_count
+    );
+
+    let linker = Linker::new(discovered);
+    linker.link(&mut graph);
+
+    if let Ok(conn) = Storage::open_db(out_path) {
+        for (path, hash) in pending_hashes {
+            let _ = Storage::update_file_hash(&conn, &path, &hash);
+        }
+    }
+
+    match format {
+        OutputFormat::Json => {
+            Storage::save_json(&graph, out_path)?;
+        }
+        OutputFormat::Sqlite => {
+            Storage::save_sqlite(&graph, out_path)?;
+        }
+        OutputFormat::Both => {
+            Storage::save_json(&graph, out_path)?;
+            Storage::save_sqlite(&graph, out_path)?;
+        }
+    }
+    Storage::save_html(&graph, out_path)?;
+
+    println!(
+        "\n{} Analysis written to {} in {:.2?}",
+        "DONE".bright_green().bold(),
+        out_path.display().to_string().cyan(),
+        start_time.elapsed()
+    );
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
     print_banner();
     let start_time = Instant::now();
@@ -405,138 +564,42 @@ fn main() -> Result<()> {
         .init();
     let cli = Cli::parse();
 
+    if cli.command.is_none() && cli.dirs.is_some() {
+        let dirs = cli.dirs.clone().unwrap_or_default();
+        let output = cli.output.clone().unwrap_or_else(|| "./output".to_string());
+        handle_scan(dirs, cli.ignore.clone(), cli.format, output, start_time)?;
+        return Ok(());
+    }
+
     match &cli.command {
-        Commands::Scan { dirs, ignore, format, output } => {
-            println!("{} {} ...", "INIT".bright_cyan().bold(), "Deep Structural Scan".white());
-            for dir in dirs {
-                let p = Path::new(dir);
-                if !p.exists() {
-                    bail!("Scanning target directory does not exist: {}", dir);
-                }
-                if !p.is_dir() {
-                    bail!("Scanning target is not a directory: {}", dir);
-                }
-            }
-            
-            let out_path = Path::new(output);
-            if !out_path.exists() {
-                fs::create_dir_all(out_path).context("Failed to create output directory")?;
-            }
-
-            // Ensure DB is initialized before scanning for cache lookups
-            if let Ok(conn) = Storage::open_db(out_path) {
-                let _ = Storage::init_db(&conn);
-            }
-
-            let scanner_dirs = dirs.clone();
-            let discovered = discover_services(&dirs);
-            if discovered.len() > dirs.len() {
-                println!("{} Detected {} sub-services in project structure.", "INFO".yellow().bold(), discovered.len());
-                // We keep scanner_dirs as the user requested root to ensure all files are scanned,
-                // but we pass discovered to the Linker to define service boundaries.
-            }
-
-            let scanner = Scanner::new(scanner_dirs.clone(), ignore.clone());
-            let mut files = scanner.scan();
-            
-            // Ensure deterministic ordering across runs
-            files.sort_by(|a, b| a.0.cmp(&b.0));
-            
-            let total_files = files.len();
-            let parse_failures = AtomicUsize::new(0);
-
-            let results: Vec<(String, String, Vec<Node>, Vec<Edge>, bool)> = files.into_par_iter().map(|(file_path, lang)| {
-                let file_path_str = file_path.to_string_lossy().to_string();
-                let conn = Storage::open_db(out_path).ok();
-                
-                if let Ok(content) = fs::read_to_string(&file_path) {
-                    let hash = blake3::hash(content.as_bytes()).to_hex().to_string();
-
-                    if let Some(ref c) = conn {
-                        if let Some(old_hash) = Storage::get_file_hash(c, &file_path_str) {
-                            if old_hash == hash {
-                                if let Ok(data) = Storage::load_file_data(c, &file_path_str) {
-                                    return (file_path_str, hash, data.0, data.1, true);
-                                }
-                            }
-                        }
-                    }
-
-                    if let Some(parser) = resolve_parser(&lang) {
-                        match parser.parse(&file_path, &content) {
-                            Ok((nodes, edges)) => {
-                                return (file_path_str, hash, nodes, edges, false);
-                            }
-                            Err(e) => {
-                                tracing::warn!("Failed to parse {}: {}", file_path.display(), e);
-                                parse_failures.fetch_add(1, Ordering::Relaxed);
-                            }
-                        }
-                    }
-                }
-
-                (file_path_str, "".to_string(), Vec::new(), Vec::new(), false)
-            }).collect();
-
-            let mut graph = Graph::new();
-            let mut skipped_count = 0;
-            let mut pending_hashes = Vec::new();
-            for (file_path, hash, nodes, edges, skipped) in results {
-                graph.nodes.extend(nodes);
-                graph.edges.extend(edges);
-                if skipped { 
-                    skipped_count += 1; 
-                } else if !hash.is_empty() {
-                    pending_hashes.push((file_path, hash));
-                }
-            }
-
-            let fail_count = parse_failures.load(Ordering::Relaxed);
-            info!("Scan complete. Total files: {}, Cached: {}, Failed: {}", total_files, skipped_count, fail_count);
-
-            let linker = Linker::new(discovered);
-            linker.link(&mut graph);
-
-            let sqlite_saved = match format {
-                OutputFormat::Json => {
-                    Storage::save_json(&graph, out_path)?;
-                    false
-                }
-                OutputFormat::Sqlite => {
-                    Storage::save_sqlite(&graph, out_path)?;
-                    true
-                }
-                OutputFormat::Both => {
-                    Storage::save_json(&graph, out_path)?;
-                    Storage::save_sqlite(&graph, out_path)?;
-                    true
-                }
-            };
-
-            if sqlite_saved {
-                if let Ok(conn) = Storage::open_db(out_path) {
-                    for (path, hash) in pending_hashes {
-                        let _ = Storage::update_file_hash(&conn, &path, &hash);
-                    }
-                }
-            }
-            Storage::save_html(&graph, out_path)?;
-
-            println!("\n{} Analysis written to {} in {:.2?}", 
-                "DONE".bright_green().bold(), 
-                out_path.display().to_string().cyan(),
-                start_time.elapsed()
-            );
+        Some(Commands::Scan {
+            dirs,
+            ignore,
+            format,
+            output,
+        }) => {
+            handle_scan(
+                dirs.clone(),
+                ignore.clone(),
+                *format,
+                output.clone(),
+                start_time,
+            )?;
         }
-        Commands::Install => {
+        Some(Commands::Install) => {
             handle_install()?;
         }
-        Commands::Uninstall => {
+        Some(Commands::Uninstall) => {
             handle_uninstall()?;
         }
         #[cfg(feature = "self-update")]
-        Commands::Upgrade => {
+        Some(Commands::Upgrade) => {
             handle_upgrade()?;
+        }
+        None => {
+            bail!(
+                "No command provided. Use 'grafyx scan --dirs <directories...> --output ./<output-folder>' or 'grafyx --dirs <directories...> --output ./<output-folder>'."
+            );
         }
     }
     Ok(())

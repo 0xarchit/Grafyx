@@ -6,8 +6,8 @@ authors:
     alias: "0xarchit"
     website: "https://0xarchit.is-a.dev"
 title: "Grafyx - Code Knowledge Graph Tool"
-version: 0.1.1
-date-released: 2026-04-19
+version: 0.1.2
+date-released: 2026-04-22
 url: "https://grafyx.0xarchit.is-a.dev"
 repository-code: "https://github.com/0xarchit/grafyx"
 license: "Apache-2.0"

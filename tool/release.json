@@ -14,5 +14,14 @@
       "fix uninstallation",
       "fix self-update"
     ]
+  },
+  "0.1.2": {
+    "Note": "[Beta release] may be unstable and has bugs",
+    "Description": "v0.1.2 release bug fix and performance improvements",
+    "Features": [
+      "Improved filtering of waste files",
+      "Fix uninstallation",
+      "Enhanced core logic"
+    ]
   }
 }
