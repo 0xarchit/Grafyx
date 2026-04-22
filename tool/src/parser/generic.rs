@@ -31,7 +31,7 @@ impl GenericParser {
                 (import_statement) @import
                 ((call_expression function: (identifier) @require.fn arguments: (arguments (string) @import.require))
                   (#eq? @require.fn "require"))
-                (call_expression function: (identifier) @call)
+                (call_expression function: (identifier) @call (#not-eq? @call "require"))
                 (call_expression function: (member_expression property: (property_identifier) @call))
             "#,
             "typescript" | "tsx" | "tx" => r#"
@@ -45,7 +45,7 @@ impl GenericParser {
                 (import_statement) @import
                 ((call_expression function: (identifier) @require.fn arguments: (arguments (string) @import.require))
                   (#eq? @require.fn "require"))
-                (call_expression function: (identifier) @call)
+                (call_expression function: (identifier) @call (#not-eq? @call "require"))
                 (call_expression function: (member_expression property: (property_identifier) @call))
             "#,
             "python" => r#"
@@ -430,6 +430,9 @@ impl CodeParser for GenericParser {
                         let Some(call_name) = Self::normalize_call_name(&node_text) else {
                             continue;
                         };
+                        if call_name == "require" {
+                            continue;
+                        }
                         let node_id = format!("CALL::{}", call_name);
                         let mut from_id = file_node_id.clone();
 

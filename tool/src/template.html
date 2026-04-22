@@ -923,25 +923,29 @@
                 try {
                     const parsed = JSON.parse(saved);
                     Object.assign(state, parsed);
-
-                    document.getElementById('c-charge').value = state.charge;
-                    document.getElementById('v-charge').innerText = state.charge;
-                    document.getElementById('c-dist').value = state.dist;
-                    document.getElementById('v-dist').innerText = state.dist;
-                    document.getElementById('c-grav').value = state.grav;
-                    document.getElementById('v-grav').innerText = state.grav;
-                    document.getElementById('c-damp').value = state.damp;
-                    document.getElementById('v-damp').innerText = state.damp;
-
-                    ['chk-folders', 'chk-files', 'chk-funcs', 'chk-classes', 'chk-imports', 'chk-calls', 'chk-arrows'].forEach(id => {
-                        const key = chkMap[id];
-                        if (key) document.getElementById(id).checked = state[key];
-                    });
-
-                    document.querySelectorAll('.lm-btn').forEach(b => b.classList.remove('active'));
-                    document.getElementById(`lm-${state.labelMode}`).classList.add('active');
                 } catch (e) { }
             }
+
+            document.getElementById('c-charge').value = state.charge;
+            document.getElementById('v-charge').innerText = state.charge;
+            document.getElementById('c-dist').value = state.dist;
+            document.getElementById('v-dist').innerText = state.dist;
+            document.getElementById('c-grav').value = state.grav;
+            document.getElementById('v-grav').innerText = state.grav;
+            document.getElementById('c-damp').value = state.damp;
+            document.getElementById('v-damp').innerText = state.damp;
+
+            ['chk-folders', 'chk-files', 'chk-funcs', 'chk-classes', 'chk-imports', 'chk-calls', 'chk-arrows'].forEach(id => {
+                const key = chkMap[id];
+                if (key) {
+                    const el = document.getElementById(id);
+                    if (el) el.checked = state[key];
+                }
+            });
+
+            document.querySelectorAll('.lm-btn').forEach(b => b.classList.remove('active'));
+            const activeBtn = document.getElementById(`lm-${state.labelMode}`);
+            if (activeBtn) activeBtn.classList.add('active');
         }
 
         function scheduleSettle(duration = 2000) {
@@ -1284,7 +1288,9 @@
         });
 
         GraphEl.addEventListener('mouseleave', () => {
+            state.hover = null;
             updateHoverChip(null);
+            softRefresh();
         });
 
         [

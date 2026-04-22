@@ -101,7 +101,6 @@ impl Scanner {
             // Go
             "**/vendor/**".to_string(),
             "**/bin/**".to_string(),
-            "**/pkg/**".to_string(),
             "**/.gocache/**".to_string(),
 
             // Java / Kotlin / Android

@@ -522,27 +522,22 @@ fn handle_scan(
     let linker = Linker::new(discovered);
     linker.link(&mut graph);
 
-    let sqlite_saved = match format {
+    if let Ok(conn) = Storage::open_db(out_path) {
+        for (path, hash) in pending_hashes {
+            let _ = Storage::update_file_hash(&conn, &path, &hash);
+        }
+    }
+
+    match format {
         OutputFormat::Json => {
             Storage::save_json(&graph, out_path)?;
-            false
         }
         OutputFormat::Sqlite => {
             Storage::save_sqlite(&graph, out_path)?;
-            true
         }
         OutputFormat::Both => {
             Storage::save_json(&graph, out_path)?;
             Storage::save_sqlite(&graph, out_path)?;
-            true
-        }
-    };
-
-    if sqlite_saved {
-        if let Ok(conn) = Storage::open_db(out_path) {
-            for (path, hash) in pending_hashes {
-                let _ = Storage::update_file_hash(&conn, &path, &hash);
-            }
         }
     }
     Storage::save_html(&graph, out_path)?;

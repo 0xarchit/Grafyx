@@ -145,11 +145,11 @@ cargo build --release
 
 ## ✦ Quick Start for New Users
 
-If this is your first time using Grafyx, run one of the two commands below from your project root.
+If this is your first time using Grafyx, run the command below from your project root.
 
 ### Scan Command
 ```bash
-grafyx --dirs <direcctories space separated> --output ./<output folder>
+grafyx --dirs <directories space separated> --output ./<output folder>
 ```
 
 Example:

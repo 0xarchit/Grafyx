@@ -162,7 +162,7 @@ impl Linker {
         for svc in services {
             let svc_path = Path::new(&svc.dir);
             if node_path.starts_with(svc_path) {
-                return svc.name.clone();
+                return svc.id.clone();
             }
         }
         String::new()
@@ -195,9 +195,7 @@ impl Linker {
 
         let mut nodes_by_id: HashMap<String, Node> = HashMap::new();
         for mut node in std::mem::take(&mut graph.nodes) {
-            if node.kind == NodeKind::File {
-                node.file_path = Self::normalize_path(&node.file_path);
-            }
+            node.file_path = Self::normalize_path(&node.file_path);
             if node.service.is_empty() && !node.file_path.is_empty() {
                 node.service = Self::service_for_path(&node.file_path, &services);
             }
@@ -223,7 +221,7 @@ impl Linker {
                 name: svc.name.clone(),
                 language: "service".to_string(),
                 file_path: svc.dir.clone(),
-                service: svc.name.clone(),
+                service: svc.id.clone(),
                 start_line: 0,
                 end_line: 0,
                 weight: 0.0,
@@ -255,7 +253,7 @@ impl Linker {
 
         for node in nodes_by_id.values() {
             if node.kind == NodeKind::File {
-                if let Some(svc) = services.iter().find(|s| s.name == node.service) {
+                if let Some(svc) = services.iter().find(|s| s.id == node.service) {
                     *edge_counts
                         .entry((svc.id.clone(), node.id.clone(), RelationType::Defines))
                         .or_insert(0.0) += 1.0;
@@ -290,6 +288,7 @@ impl Linker {
         let mut external_module_ids: HashSet<String> = HashSet::new();
         let mut external_call_ids: HashSet<String> = HashSet::new();
 
+        let mut non_import_edges = Vec::new();
         for edge in std::mem::take(&mut graph.edges) {
             if edge.from_node_id == edge.to_node_id {
                 continue;
@@ -334,7 +333,10 @@ impl Linker {
                     continue;
                 }
             }
+            non_import_edges.push(edge);
+        }
 
+        for edge in non_import_edges {
             if edge.relation_type == RelationType::Calls {
                 if let Some(call_name) = edge.to_node_id.strip_prefix("CALL::") {
                     let from_node = nodes_by_id.get(&edge.from_node_id);
@@ -462,7 +464,7 @@ impl Linker {
             if node.service.is_empty() || node.service == "global" || node.service == "external" {
                 continue;
             }
-            if let Some(svc) = services.iter().find(|s| s.name == node.service) {
+            if let Some(svc) = services.iter().find(|s| s.id == node.service) {
                 node_to_service_id.insert(node.id.clone(), svc.id.clone());
             }
         }
