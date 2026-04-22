@@ -3,16 +3,16 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(name = "grafyx", version, about, long_about = None)]
 pub struct Cli {
-    #[arg(long, num_args = 1.., conflicts_with = "command", requires = "output")]
+    #[arg(long, num_args = 1.., requires = "output")]
     pub dirs: Option<Vec<String>>,
 
-    #[arg(long, num_args = 1.., conflicts_with = "command")]
+    #[arg(long, num_args = 1..)]
     pub ignore: Option<Vec<String>>,
 
-    #[arg(long, default_value = "both", conflicts_with = "command", requires = "dirs")]
+    #[arg(long, default_value = "both", requires = "dirs")]
     pub format: OutputFormat,
 
-    #[arg(long, conflicts_with = "command", requires = "dirs")]
+    #[arg(long, requires = "dirs")]
     pub output: Option<String>,
 
     #[command(subcommand)]
@@ -47,5 +47,8 @@ pub enum Commands {
     Uninstall,
     #[cfg(feature = "self-update")]
     #[command(alias = "u")]
-    Upgrade,
+    Upgrade {
+        #[arg(long, short)]
+        force: bool,
+    },
 }

@@ -21,6 +21,7 @@
     "Features": [
       "Improved filtering of waste files",
       "Fix uninstallation",
+      "fix self-update",
       "Enhanced core logic"
     ]
   }

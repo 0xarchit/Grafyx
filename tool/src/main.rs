@@ -234,7 +234,7 @@ fn print_banner() {
 }
 
 #[cfg(feature = "self-update")]
-fn handle_upgrade() -> Result<()> {
+fn handle_upgrade(force: bool) -> Result<()> {
     println!("Checking for updates...");
     let releases = self_update::backends::github::ReleaseList::configure()
         .repo_owner("0xarchit")
@@ -253,8 +253,12 @@ fn handle_upgrade() -> Result<()> {
     let latest_version = &latest.version;
     let current_version = env!("CARGO_PKG_VERSION");
 
-    if self_update::version::bump_is_greater(current_version, latest_version)? {
-        println!("New version {} available! (Current: {})", latest_version, current_version);
+    if force || self_update::version::bump_is_greater(current_version, latest_version)? {
+        if force && !self_update::version::bump_is_greater(current_version, latest_version)? {
+            println!("Forcing re-download of version {} (Current: {})", latest_version, current_version);
+        } else {
+            println!("New version {} available! (Current: {})", latest_version, current_version);
+        }
         
         let target = self_update::get_target();
         let asset_name = match target {
@@ -274,23 +278,34 @@ fn handle_upgrade() -> Result<()> {
         let sig_asset_name = format!("{}.sig", bin_asset.name);
         let sig_asset = latest.assets.iter().find(|a| a.name == sig_asset_name)
             .context(format!("No signature asset found ({}). Security verification is mandatory for updates.", sig_asset_name))?;
-
         let tmp_dir = tempfile::Builder::new().prefix("grafyx-update").tempdir()?;
         let tmp_bin = tmp_dir.path().join(&bin_asset.name);
         let tmp_sig = tmp_dir.path().join(&sig_asset.name);
 
+        let token = std::env::var("GITHUB_TOKEN").or_else(|_| std::env::var("GH_TOKEN")).ok();
+ 
         println!("Downloading update: {}...", bin_asset.name);
-        let mut bin_file = fs::File::create(&tmp_bin).context("Failed to create temp binary file")?;
-        self_update::Download::from_url(&bin_asset.download_url)
-            .show_progress(true)
-            .download_to(&mut bin_file)
-            .context("Failed to download binary")?;
-
+        {
+            let mut bin_file = fs::File::create(&tmp_bin).context("Failed to create temp binary file")?;
+            let mut download = self_update::Download::from_url(&bin_asset.download_url);
+            download.show_progress(true);
+            download.set_header(reqwest::header::ACCEPT, "application/octet-stream".parse().unwrap());
+            if let Some(ref t) = token {
+                download.set_header(reqwest::header::AUTHORIZATION, format!("token {}", t).parse().unwrap());
+            }
+            download.download_to(&mut bin_file).context("Failed to download binary")?;
+        }
+ 
         println!("Downloading signature: {}...", sig_asset.name);
-        let mut sig_file = fs::File::create(&tmp_sig).context("Failed to create temp signature file")?;
-        self_update::Download::from_url(&sig_asset.download_url)
-            .download_to(&mut sig_file)
-            .context("Failed to download signature")?;
+        {
+            let mut sig_file = fs::File::create(&tmp_sig).context("Failed to create temp signature file")?;
+            let mut download = self_update::Download::from_url(&sig_asset.download_url);
+            download.set_header(reqwest::header::ACCEPT, "application/octet-stream".parse().unwrap());
+            if let Some(ref t) = token {
+                download.set_header(reqwest::header::AUTHORIZATION, format!("token {}", t).parse().unwrap());
+            }
+            download.download_to(&mut sig_file).context("Failed to download signature")?;
+        }
 
         println!("Verifying cryptographic signature...");
         let sig_bytes = std::fs::read(&tmp_sig).context("Failed to read signature file")?;
@@ -593,8 +608,8 @@ fn main() -> Result<()> {
             handle_uninstall()?;
         }
         #[cfg(feature = "self-update")]
-        Some(Commands::Upgrade) => {
-            handle_upgrade()?;
+        Some(Commands::Upgrade { force }) => {
+            handle_upgrade(*force)?;
         }
         None => {
             bail!(
