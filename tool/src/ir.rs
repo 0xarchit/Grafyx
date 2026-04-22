@@ -13,6 +13,7 @@ pub enum NodeKind {
     Class,
     Function,
     Variable,
+    Call,
 }
 
 impl fmt::Display for NodeKind {
@@ -25,6 +26,7 @@ impl fmt::Display for NodeKind {
             Self::Class => "class",
             Self::Function => "function",
             Self::Variable => "variable",
+            Self::Call => "call",
         };
         write!(f, "{}", s)
     }
@@ -41,6 +43,7 @@ impl FromStr for NodeKind {
             "class" => Ok(Self::Class),
             "function" => Ok(Self::Function),
             "variable" => Ok(Self::Variable),
+            "call" => Ok(Self::Call),
             _ => Err(anyhow!("Unknown NodeKind: {}", s)),
         }
     }
@@ -95,7 +98,7 @@ impl FromStr for RelationType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Node {
     pub id: String,
     pub kind: NodeKind,
@@ -105,14 +108,20 @@ pub struct Node {
     pub service: String,
     pub start_line: usize,
     pub end_line: usize,
+    #[serde(default)]
+    pub weight: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Edge {
     pub from_node_id: String,
     pub to_node_id: String,
     pub relation_type: RelationType,
+    #[serde(default = "default_weight")]
+    pub _w: f64,
 }
+
+fn default_weight() -> f64 { 1.0 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Graph {

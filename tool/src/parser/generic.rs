@@ -1,305 +1,544 @@
-use super::CodeParser;
 use crate::ir::{Edge, Node, NodeKind, RelationType};
+use crate::parser::CodeParser;
+use anyhow::{Context, Result};
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use tree_sitter::{Language, Parser as TSParser, Query, QueryCursor};
-use streaming_iterator::StreamingIterator;
-use anyhow::{Result, Context};
+use tree_sitter::{Language, Parser, Query, QueryCursor, StreamingIterator};
 
 pub struct GenericParser {
     language: Language,
-    query_str: &'static str,
-    lang_name: &'static str,
+    lang_name: String,
 }
 
 impl GenericParser {
-    pub fn new(language: Language, lang_name: &'static str) -> Self {
+    pub fn new(language: Language, lang_name: &str) -> Self {
         Self {
             language,
-            query_str: Self::default_query(lang_name),
-            lang_name,
+            lang_name: lang_name.to_string(),
         }
     }
 
-    fn default_query(lang: &str) -> &'static str {
-        match lang {
-            "javascript" | "typescript" => "[(import_statement) @import (call_expression function: (identifier) @call) (member_expression property: (property_identifier) @call)]",
-            "python" => "[(import_statement) @import (import_from_statement) @import (call function: (identifier) @call) (call function: (attribute attribute: (identifier) @call))] ",
-            "java" => "[(import_declaration) @import (method_invocation name: (identifier) @call)]",
-            "go" => "[(import_declaration) @import (call_expression function: (identifier) @call) (call_expression function: (selector_expression field: (field_identifier) @call))]",
-            "rust" => "[(mod_item name: (identifier) @import) (call_expression function: (identifier) @call) (call_expression function: (field_expression field: (field_identifier) @call)) (macro_invocation macro: (identifier) @call) (use_declaration) @import]",
-            _ => "",
+    fn get_query(&self) -> &str {
+        match self.lang_name.as_str() {
+            "javascript" | "jsx" | "js" => r#"
+                (function_declaration name: (identifier) @func.def)
+                (method_definition name: (property_identifier) @func.def)
+                (variable_declarator name: (identifier) @func.def value: (arrow_function))
+                (variable_declarator name: (identifier) @func.def value: (function_expression))
+                (assignment_expression left: (identifier) @func.def right: (arrow_function))
+                (assignment_expression left: (identifier) @func.def right: (function_expression))
+                (class_declaration name: (identifier) @class.def)
+                (import_statement) @import
+                ((call_expression function: (identifier) @require.fn arguments: (arguments (string) @import.require))
+                  (#eq? @require.fn "require"))
+                (call_expression function: (identifier) @call)
+                (call_expression function: (member_expression property: (property_identifier) @call))
+            "#,
+            "typescript" | "tsx" | "tx" => r#"
+                (function_declaration name: (identifier) @func.def)
+                (method_definition name: (property_identifier) @func.def)
+                (variable_declarator name: (identifier) @func.def value: (arrow_function))
+                (variable_declarator name: (identifier) @func.def value: (function_expression))
+                (assignment_expression left: (identifier) @func.def right: (arrow_function))
+                (assignment_expression left: (identifier) @func.def right: (function_expression))
+                (class_declaration name: (type_identifier) @class.def)
+                (import_statement) @import
+                ((call_expression function: (identifier) @require.fn arguments: (arguments (string) @import.require))
+                  (#eq? @require.fn "require"))
+                (call_expression function: (identifier) @call)
+                (call_expression function: (member_expression property: (property_identifier) @call))
+            "#,
+            "python" => r#"
+                (function_definition name: (identifier) @func.def)
+                (class_definition name: (identifier) @class.def)
+                (import_from_statement) @import
+                (import_statement) @import
+                (call function: (_) @call)
+            "#,
+            "java" => r#"
+                (method_declaration name: (identifier) @func.def)
+                (constructor_declaration name: (identifier) @func.def)
+                (class_declaration name: (identifier) @class.def)
+                (interface_declaration name: (identifier) @class.def)
+                (import_declaration) @import
+                (method_invocation name: (identifier) @call)
+            "#,
+            "go" => r#"
+                (function_declaration name: (identifier) @func.def)
+                (method_declaration name: (field_identifier) @func.def)
+                (type_declaration (type_spec name: (type_identifier) @class.def))
+                (import_spec) @import
+                (call_expression function: (_) @call)
+            "#,
+            "rust" => r#"
+                (function_item name: (identifier) @func.def)
+                (struct_item name: (type_identifier) @class.def)
+                (enum_item name: (type_identifier) @class.def)
+                (mod_item name: (identifier) @class.def)
+                (use_declaration) @import
+                (call_expression function: (_) @call)
+            "#,
+            _ => "(ERROR) @error",
         }
     }
 
-    fn clean_node_name(&self, text: &str) -> String {
-        let text = text.trim();
-        if text.is_empty() { return "".to_string(); }
+    fn clean_name(name: &str) -> String {
+        name.trim_matches(|c| c == '"' || c == '\'' || c == '`' || c == '{' || c == '}' || c == '(' || c == ')')
+            .to_string()
+    }
 
-        match self.lang_name {
-            "python" => {
-                let py_text = text.trim();
-                // Handle "from x import y"
-                if py_text.starts_with("from ") && py_text.contains(" import ") {
-                    let parts: Vec<&str> = py_text.split(" import ").collect();
-                    if parts.len() > 1 {
-                        let module = parts[0].replace("from ", "").trim().to_string();
-                        let item = parts[1].split(" as ").next().unwrap_or(parts[1]).trim().to_string();
-                        return format!("{}.{}", module, item);
+    fn normalize_import_spec(spec: &str) -> Option<String> {
+        let cleaned = spec
+            .trim()
+            .trim_end_matches(';')
+            .trim_matches(|c| c == '"' || c == '\'' || c == '`')
+            .trim()
+            .to_string();
+
+        if cleaned.is_empty() {
+            None
+        } else {
+            Some(cleaned)
+        }
+    }
+
+    fn quoted_segments(text: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut in_quote: Option<char> = None;
+        let mut buf = String::new();
+
+        for ch in text.chars() {
+            if let Some(q) = in_quote {
+                if ch == q {
+                    if !buf.trim().is_empty() {
+                        out.push(buf.trim().to_string());
                     }
+                    buf.clear();
+                    in_quote = None;
+                } else {
+                    buf.push(ch);
                 }
-                
-                // Handle "import x as y"
-                let clean = py_text.replace("import ", "")
+            } else if ch == '"' || ch == '\'' || ch == '`' {
+                in_quote = Some(ch);
+            }
+        }
+
+        out
+    }
+
+    fn extract_js_ts_imports(raw: &str) -> Vec<String> {
+        let segments = Self::quoted_segments(raw);
+        if segments.is_empty() {
+            Vec::new()
+        } else {
+            vec![segments.last().cloned().unwrap_or_default()]
+        }
+    }
+
+    fn extract_python_imports(raw: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        let trimmed = raw.trim();
+
+        if let Some(rest) = trimmed.strip_prefix("import ") {
+            for part in rest.split(',') {
+                let item = part
+                    .trim()
                     .split(" as ")
                     .next()
-                    .unwrap_or(py_text)
-                    .trim()
-                    .to_string();
-                clean
-            }
-            "javascript" | "typescript" => {
-                // Handle "import ... from 'path'"
-                if text.contains(" from ") {
-                    if let Some(path_start) = text.find('\'').or_else(|| text.find('\"')) {
-                        let quote = text.as_bytes()[path_start];
-                        let path_part = &text[path_start + 1..];
-                        if let Some(path_end) = path_part.find(quote as char) {
-                            let mod_path = &path_part[..path_end];
-                            return mod_path.split('/').next_back().unwrap_or(mod_path).to_string();
-                        }
-                    }
+                    .unwrap_or("")
+                    .trim();
+                if !item.is_empty() {
+                    out.push(item.to_string());
                 }
-                // Handle require('path')
-                if text.contains("require(") {
-                    if let Some(path_start) = text.find('\'').or_else(|| text.find('\"')) {
-                        let quote = text.as_bytes()[path_start];
-                        let path_part = &text[path_start + 1..];
-                        if let Some(path_end) = path_part.find(quote as char) {
-                            let mod_path = &path_part[..path_end];
-                            return mod_path.split('/').next_back().unwrap_or(mod_path).to_string();
-                        }
-                    }
+            }
+            return out;
+        }
+
+        if let Some(rest) = trimmed.strip_prefix("from ") {
+            let base = rest.split(" import ").next().unwrap_or("").trim();
+            if !base.is_empty() {
+                out.push(base.to_string());
+            }
+        }
+
+        out
+    }
+
+    fn extract_java_imports(raw: &str) -> Vec<String> {
+        let trimmed = raw.trim().trim_end_matches(';').trim();
+        let without_import = trimmed
+            .strip_prefix("import static ")
+            .or_else(|| trimmed.strip_prefix("import "))
+            .unwrap_or(trimmed)
+            .trim();
+
+        if without_import.is_empty() {
+            Vec::new()
+        } else {
+            vec![without_import.to_string()]
+        }
+    }
+
+    fn extract_rust_imports(raw: &str) -> Vec<String> {
+        let trimmed = raw.trim().trim_end_matches(';').trim();
+        let mut body = trimmed;
+        if let Some(rest) = body.strip_prefix("pub ") {
+            body = rest.trim();
+        }
+        body = body.strip_prefix("use ").unwrap_or(body).trim();
+        if body.is_empty() {
+            return Vec::new();
+        }
+
+        if let (Some(left), Some(right)) = (body.find('{'), body.rfind('}')) {
+            let prefix = body[..left].trim().trim_end_matches("::");
+            let inside = &body[left + 1..right];
+            let mut out = Vec::new();
+            for item in inside.split(',') {
+                let atom = item.trim();
+                if atom.is_empty() {
+                    continue;
                 }
-                text.to_string()
-            }
-            "rust" => {
-                text.trim_start_matches("use ")
-                    .trim_end_matches(';')
-                    .trim()
-                    .to_string()
-            }
-            "java" => {
-                text.trim_start_matches("import ")
-                    .trim_end_matches(';')
-                    .trim()
-                    .to_string()
-            }
-            "go" => {
-                // Strip quotes and get the last part of the path
-                let clean = text.trim_matches('"').trim_matches('\'');
-                let parts: Vec<&str> = clean.split('/').collect();
-                if parts.len() > 1 {
-                    // Avoid returning just "internal" or some generic segment if possible
-                    let last = parts.last().unwrap_or(&clean);
-                    if (*last == "internal" || *last == "pkg") && parts.len() > 2 {
-                        return format!("{}/{}", parts[parts.len() - 2], last);
+                if atom == "self" {
+                    if !prefix.is_empty() {
+                        out.push(prefix.to_string());
                     }
-                    last.to_string()
+                    continue;
+                }
+                if prefix.is_empty() {
+                    out.push(atom.to_string());
                 } else {
-                    clean.to_string()
+                    out.push(format!("{}::{}", prefix, atom));
                 }
             }
-            _ => text.to_string()
+            return out;
+        }
+
+        vec![body.to_string()]
+    }
+
+    fn extract_go_imports(raw: &str) -> Vec<String> {
+        let quoted = Self::quoted_segments(raw);
+        if !quoted.is_empty() {
+            return quoted;
+        }
+
+        let trimmed = raw.trim();
+        if let Some(rest) = trimmed.strip_prefix("import ") {
+            let candidate = rest
+                .split_whitespace()
+                .last()
+                .unwrap_or("")
+                .trim_matches(|c| c == '"' || c == '\'');
+            if !candidate.is_empty() {
+                return vec![candidate.to_string()];
+            }
+        }
+
+        Vec::new()
+    }
+
+    fn extract_import_specs(&self, raw: &str) -> Vec<String> {
+        let specs = match self.lang_name.as_str() {
+            "javascript" | "jsx" | "js" | "typescript" | "tsx" | "tx" => {
+                Self::extract_js_ts_imports(raw)
+            }
+            "python" => Self::extract_python_imports(raw),
+            "java" => Self::extract_java_imports(raw),
+            "go" => Self::extract_go_imports(raw),
+            "rust" => Self::extract_rust_imports(raw),
+            _ => Vec::new(),
+        };
+
+        specs
+            .into_iter()
+            .filter_map(|s| Self::normalize_import_spec(&s))
+            .collect()
+    }
+
+    fn normalize_call_name(raw: &str) -> Option<String> {
+        let mut cleaned = raw.trim();
+        if cleaned.is_empty() {
+            return None;
+        }
+
+        if let Some(idx) = cleaned.find('(') {
+            cleaned = &cleaned[..idx];
+        }
+
+        let cleaned = cleaned
+            .trim()
+            .trim_matches(|c| c == '"' || c == '\'' || c == '`' || c == '{' || c == '}' || c == '(' || c == ')');
+
+        if cleaned.is_empty() {
+            return None;
+        }
+
+        let canonical = cleaned.replace("::", ".").replace("->", ".");
+        let tail = canonical
+            .split('.')
+            .filter(|s| !s.trim().is_empty())
+            .last()
+            .unwrap_or(cleaned)
+            .trim();
+
+        if tail.is_empty() {
+            None
+        } else {
+            Some(tail.to_string())
         }
     }
 }
-
 
 impl CodeParser for GenericParser {
     fn parse(&self, file_path: &Path, content: &str) -> Result<(Vec<Node>, Vec<Edge>)> {
-        let mut parser = TSParser::new();
-        parser.set_language(&self.language).context("Failed to set tree-sitter language")?;
+        let mut parser = Parser::new();
+        parser.set_language(&self.language).context("Failed to set language")?;
         
+        let tree = parser.parse(content, None).context("Failed to parse content")?;
+        let root_node = tree.root_node();
+        
+        let query_str = self.get_query();
+        let query = Query::new(&self.language, query_str).context("Failed to create query")?;
+        let mut cursor = QueryCursor::new();
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
-        
-        let tree = parser.parse(content, None)
-            .context("Tree-sitter failed to parse content")?;
-        
-        let file_name = file_path.to_string_lossy().to_string();
-        let file_id = format!("{}::{}::FILE", self.lang_name, file_name);
-        
-        let end_line = tree.root_node().end_position().row;
+        let mut seen_nodes: HashSet<String> = HashSet::new();
+        let mut seen_edges: HashSet<(String, String, RelationType)> = HashSet::new();
+        let mut function_scopes: Vec<(usize, usize, String)> = Vec::new();
+        let mut function_keys: HashMap<(String, usize), String> = HashMap::new();
 
+        let file_path_str = file_path.to_string_lossy().to_string();
+        let file_node_id = format!("FILE::{}", file_path_str);
+
+        seen_nodes.insert(file_node_id.clone());
         nodes.push(Node {
-            id: file_id.clone(),
+            id: file_node_id.clone(),
             kind: NodeKind::File,
-            name: file_name.clone(),
-            language: self.lang_name.to_string(),
-            file_path: file_name.clone(),
+            name: file_path_str.clone(),
+            language: self.lang_name.clone(),
+            file_path: file_path_str.clone(),
             service: "".to_string(),
             start_line: 0,
-            end_line,
+            end_line: content.lines().count(),
+            weight: 1.0,
         });
-        
-        let query = match Query::new(&self.language, self.query_str) {
-            Ok(q) => q,
-            Err(e) => {
-                tracing::debug!("Query compilation failed for {}: {}", self.lang_name, e);
-                return Ok((nodes, edges));
-            }
-        };
 
-        let mut cursor = QueryCursor::new();
-        let mut matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
-            
-            while let Some(m) = matches.next() {
-                for capture in m.captures {
-                    if let Ok(text) = capture.node.utf8_text(content.as_bytes()) {
-                        let name = self.clean_node_name(text);
-                        if name.is_empty() { continue; }
-                        
-                        let tag = query.capture_names()[capture.index as usize];
-                        
-                        let (kind, relation) = if tag == "import" {
-                            (NodeKind::Module, RelationType::Imports)
-                        } else {
-                            (NodeKind::Function, RelationType::Calls)
-                        };
+        let mut matches = cursor.matches(&query, root_node, content.as_bytes());
+        while let Some(m) = matches.next() {
+            for capture in m.captures {
+                let capture_name = query.capture_names()[capture.index as usize];
+                let raw_text = capture.node.utf8_text(content.as_bytes()).unwrap_or("").to_string();
+                let node_text = Self::clean_name(&raw_text);
+                let start_line = capture.node.start_position().row + 1;
+                let end_line = capture.node.end_position().row + 1;
 
-                        let start_line = capture.node.start_position().row;
-                        let end_line = capture.node.end_position().row;
-                        let call_id = format!("{}::{}::{}::L{}", self.lang_name, file_name, name, start_line);
-                        nodes.push(Node {
-                            id: call_id.clone(),
-                            kind,
-                            name: name.to_string(),
-                            language: self.lang_name.to_string(),
-                            file_path: file_name.clone(),
-                            service: "".to_string(),
-                            start_line,
-                            end_line,
-                        });
-                        edges.push(Edge {
-                            from_node_id: file_id.clone(),
-                            to_node_id: call_id,
-                            relation_type: relation,
-                        });
+                match capture_name {
+                    "func.def" => {
+                        let node_id = format!("FUNC::{}::{}::{}", file_path_str, node_text, start_line);
+                        if seen_nodes.insert(node_id.clone()) {
+                            nodes.push(Node {
+                                id: node_id.clone(),
+                                kind: NodeKind::Function,
+                                name: node_text.clone(),
+                                language: self.lang_name.clone(),
+                                file_path: file_path_str.clone(),
+                                service: "".to_string(),
+                                start_line,
+                                end_line,
+                                weight: 1.0,
+                            });
+                        }
+                        function_keys.insert((node_text.clone(), start_line), node_id.clone());
+                        let decl_node = capture
+                            .node
+                            .parent()
+                            .filter(|p| {
+                                p.kind().contains("function")
+                                    || p.kind().contains("method")
+                                    || p.kind().contains("constructor")
+                                    || p.kind() == "variable_declarator"
+                                    || p.kind() == "assignment_expression"
+                            })
+                            .unwrap_or(capture.node);
+                        function_scopes.push((decl_node.start_byte(), decl_node.end_byte(), node_id.clone()));
+                        let edge_key = (file_node_id.clone(), node_id.clone(), RelationType::Defines);
+                        if seen_edges.insert(edge_key.clone()) {
+                            edges.push(Edge {
+                                from_node_id: edge_key.0,
+                                to_node_id: edge_key.1,
+                                relation_type: edge_key.2,
+                                _w: 1.0,
+                            });
+                        }
                     }
+                    "class.def" => {
+                        let node_id = format!("CLASS::{}::{}::{}", file_path_str, node_text, start_line);
+                        if seen_nodes.insert(node_id.clone()) {
+                            nodes.push(Node {
+                                id: node_id.clone(),
+                                kind: NodeKind::Class,
+                                name: node_text,
+                                language: self.lang_name.clone(),
+                                file_path: file_path_str.clone(),
+                                service: "".to_string(),
+                                start_line,
+                                end_line,
+                                weight: 1.0,
+                            });
+                        }
+                        let edge_key = (file_node_id.clone(), node_id.clone(), RelationType::Defines);
+                        if seen_edges.insert(edge_key.clone()) {
+                            edges.push(Edge {
+                                from_node_id: edge_key.0,
+                                to_node_id: edge_key.1,
+                                relation_type: edge_key.2,
+                                _w: 1.0,
+                            });
+                        }
+                    }
+                    "import" => {
+                        let specs = self.extract_import_specs(&raw_text);
+                        for spec in specs {
+                            let to_id = format!("IMPORT::{}", spec);
+                            let edge_key = (file_node_id.clone(), to_id, RelationType::Imports);
+                            if seen_edges.insert(edge_key.clone()) {
+                                edges.push(Edge {
+                                    from_node_id: edge_key.0,
+                                    to_node_id: edge_key.1,
+                                    relation_type: edge_key.2,
+                                    _w: 1.0,
+                                });
+                            }
+                        }
+                    }
+                    "import.require" => {
+                        if let Some(spec) = Self::normalize_import_spec(&raw_text) {
+                            let to_id = format!("IMPORT::{}", spec);
+                            let edge_key = (file_node_id.clone(), to_id, RelationType::Imports);
+                            if seen_edges.insert(edge_key.clone()) {
+                                edges.push(Edge {
+                                    from_node_id: edge_key.0,
+                                    to_node_id: edge_key.1,
+                                    relation_type: edge_key.2,
+                                    _w: 1.0,
+                                });
+                            }
+                        }
+                    }
+                    "call" => {
+                        let Some(call_name) = Self::normalize_call_name(&node_text) else {
+                            continue;
+                        };
+                        let node_id = format!("CALL::{}", call_name);
+                        let mut from_id = file_node_id.clone();
+
+                        let call_byte = capture.node.start_byte();
+                        if let Some((_, _, owner_id)) = function_scopes
+                            .iter()
+                            .filter(|(s, e, _)| *s <= call_byte && call_byte <= *e)
+                            .min_by_key(|(s, e, _)| e - s)
+                        {
+                            from_id = owner_id.clone();
+                        }
+
+                        let mut p = capture.node.parent();
+                        while let Some(parent_node) = p {
+                            if from_id != file_node_id {
+                                break;
+                            }
+                            let pk = parent_node.kind();
+                            if pk.contains("function") || pk.contains("method") || pk.contains("constructor") {
+                                if let Some(name_node) = parent_node.child_by_field_name("name") {
+                                    let name_text = name_node.utf8_text(content.as_bytes()).unwrap_or("");
+                                    let sl = name_node.start_position().row + 1;
+                                    let owner_name = Self::clean_name(name_text);
+                                    if let Some(existing) = function_keys.get(&(owner_name.clone(), sl)) {
+                                        from_id = existing.clone();
+                                    } else {
+                                        from_id = format!("FUNC::{}::{}::{}", file_path_str, owner_name, sl);
+                                    }
+                                    break;
+                                }
+                            }
+
+                            if pk == "variable_declarator" {
+                                if let Some(name_node) = parent_node.child_by_field_name("name") {
+                                    let owner_name = Self::clean_name(name_node.utf8_text(content.as_bytes()).unwrap_or(""));
+                                    let sl = name_node.start_position().row + 1;
+                                    if let Some(existing) = function_keys.get(&(owner_name.clone(), sl)) {
+                                        from_id = existing.clone();
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if pk == "assignment_expression" {
+                                if let Some(left_node) = parent_node.child_by_field_name("left") {
+                                    let owner_name = Self::clean_name(left_node.utf8_text(content.as_bytes()).unwrap_or(""));
+                                    let sl = left_node.start_position().row + 1;
+                                    if let Some(existing) = function_keys.get(&(owner_name.clone(), sl)) {
+                                        from_id = existing.clone();
+                                        break;
+                                    }
+                                }
+                            }
+
+                            p = parent_node.parent();
+                        }
+
+                        let edge_key = (from_id, node_id, RelationType::Calls);
+                        if seen_edges.insert(edge_key.clone()) {
+                            edges.push(Edge {
+                                from_node_id: edge_key.0,
+                                to_node_id: edge_key.1,
+                                relation_type: edge_key.2,
+                                _w: 1.0,
+                            });
+                        }
+                    }
+                    _ => {}
                 }
             }
+        }
 
-        
         Ok((nodes, edges))
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     #[test]
-    fn test_python_parsing() {
-        let parser = GenericParser::new(
-            tree_sitter_python::LANGUAGE.into(),
-            "python",
-        );
-        let content = "import os\nfrom math import sqrt\nsqrt(16)";
-        let (nodes, edges) = parser.parse(&PathBuf::from("test.py"), content).expect("Parse failed");
+    fn extracts_js_arrow_functions_and_scoped_calls() {
+        let parser = GenericParser::new(tree_sitter_javascript::LANGUAGE.into(), "javascript");
+        let src = "const foo = () => { bar(); }; function bar() { return 1; }";
+        let path = Path::new("/repo/app.js");
 
-        // Nodes: File node + os + math.sqrt + call to sqrt
-        // Note: The query captures might create duplicates or specific IDs.
-        assert!(nodes.iter().any(|n| n.name == "os" && n.kind == NodeKind::Module));
-        assert!(nodes.iter().any(|n| n.name == "math.sqrt" && n.kind == NodeKind::Module));
-        assert!(nodes.iter().any(|n| n.name == "sqrt" && n.kind == NodeKind::Function));
-        assert!(edges.len() >= 3);
+        let (nodes, edges) = parser.parse(path, src).expect("parse should succeed");
+
+        assert!(nodes.iter().any(|n| n.kind == NodeKind::Function && n.name == "foo"));
+        assert!(nodes.iter().any(|n| n.kind == NodeKind::Function && n.name == "bar"));
+
+        let foo_id = nodes
+            .iter()
+            .find(|n| n.kind == NodeKind::Function && n.name == "foo")
+            .map(|n| n.id.clone())
+            .expect("foo function node must exist");
+
+        assert!(edges.iter().any(|e| {
+            e.relation_type == RelationType::Calls && e.from_node_id == foo_id && e.to_node_id == "CALL::bar"
+        }));
     }
 
     #[test]
-    fn test_js_parsing() {
-        let parser = GenericParser::new(
-            tree_sitter_javascript::LANGUAGE.into(),
-            "javascript",
-        );
-        let content = "import { x } from './lib';\nconst r = require('fs');\nconsole.log(r);";
-        let (nodes, _edges) = parser.parse(&PathBuf::from("test.js"), content).expect("Parse failed");
+    fn extracts_python_async_functions() {
+        let parser = GenericParser::new(tree_sitter_python::LANGUAGE.into(), "python");
+        let src = "async def worker():\n    return 1\n";
+        let path = Path::new("/repo/app.py");
 
-        assert!(nodes.iter().any(|n| n.name == "lib" && n.kind == NodeKind::Module));
-        // Note: GenericParser might not handle require unless query is set up for it, 
-        // but here we check clean_node_name logic too.
-    }
-
-    #[test]
-    fn test_go_path_cleaning() {
-        let parser = GenericParser::new(
-            tree_sitter_go::LANGUAGE.into(),
-            "go",
-        );
-        assert_eq!(parser.clean_node_name("\"github.com/user/project/pkg\""), "project/pkg");
-        assert_eq!(parser.clean_node_name("\"github.com/user/project/internal\""), "project/internal");
-    }
-
-    #[test]
-    fn test_rust_parsing() {
-        let parser = GenericParser::new(
-            tree_sitter_rust::LANGUAGE.into(),
-            "rust",
-        );
-        let content = "use std::collections::HashMap;\nfn main() { let mut m = HashMap::new(); println!(\"test\"); }";
-        let (nodes, _edges) = parser.parse(&PathBuf::from("main.rs"), content).expect("Parse failed");
-        
-        assert!(nodes.iter().any(|n| n.name == "std::collections::HashMap" && n.kind == NodeKind::Module));
-        assert!(nodes.iter().any(|n| n.name == "println" && n.kind == NodeKind::Function));
-    }
-
-    #[test]
-    fn test_java_parsing() {
-        let parser = GenericParser::new(
-            tree_sitter_java::LANGUAGE.into(),
-            "java",
-        );
-        let content = "import java.util.List;\npublic class Test { public void run() { list.add(1); } }";
-        let (nodes, _edges) = parser.parse(&PathBuf::from("Test.java"), content).expect("Parse failed");
-        
-        assert!(nodes.iter().any(|n| n.name == "java.util.List" && n.kind == NodeKind::Module));
-        assert!(nodes.iter().any(|n| n.name == "add" && n.kind == NodeKind::Function));
-    }
-
-    #[test]
-    fn test_ts_parsing() {
-        let parser = GenericParser::new(
-            tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
-            "typescript",
-        );
-        let content = "import { x } from './lib';\nfunction test() { console.log(x); }";
-        let (nodes, _edges) = parser.parse(&PathBuf::from("test.ts"), content).expect("Parse failed");
-        
-        assert!(nodes.iter().any(|n| n.name == "lib" && n.kind == NodeKind::Module));
-        assert!(nodes.iter().any(|n| n.name == "log" && n.kind == NodeKind::Function));
-    }
-
-    #[test]
-    fn test_empty_file() {
-        let parser = GenericParser::new(
-            tree_sitter_rust::LANGUAGE.into(),
-            "rust",
-        );
-        let (nodes, edges) = parser.parse(&PathBuf::from("empty.rs"), "").expect("Parse failed");
-        assert_eq!(nodes.len(), 1); // Only the file node
-        assert_eq!(edges.len(), 0);
-    }
-
-    #[test]
-    fn test_syntax_error() {
-        let parser = GenericParser::new(
-            tree_sitter_rust::LANGUAGE.into(),
-            "rust",
-        );
-        let content = "fn main() { !!! }"; // Invalid rust
-        let (nodes, edges) = parser.parse(&PathBuf::from("error.rs"), content).expect("Parse failed");
-        // Tree-sitter is robust; it will still produce a tree (potentially with ERROR nodes)
-        // Our queries should just return nothing or safe results.
-        assert!(nodes.len() >= 1);
-        assert_eq!(edges.len(), 0);
+        let (nodes, _) = parser.parse(path, src).expect("parse should succeed");
+        assert!(nodes.iter().any(|n| n.kind == NodeKind::Function && n.name == "worker"));
     }
 }

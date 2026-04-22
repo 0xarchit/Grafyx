@@ -8,7 +8,22 @@
     <script src="https://unpkg.com/d3@7.8.5/dist/d3.min.js"></script>
     <script src="https://unpkg.com/force-graph@1.43.5/dist/force-graph.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Cormorant+Garamond:wght@500;600&display=swap');
+
+        :root {
+            --bg-0: #101012;
+            --bg-1: #161519;
+            --bg-2: #1f1d22;
+            --text-strong: #f0ede6;
+            --text-body: #cbc5ba;
+            --text-dim: #8f8a80;
+            --metal: #c6b393;
+            --metal-soft: rgba(198, 179, 147, 0.26);
+            --glass: rgba(20, 19, 23, 0.72);
+            --line-soft: rgba(255, 255, 255, 0.08);
+            --line-faint: rgba(255, 255, 255, 0.04);
+            --panel-shadow: 0 20px 50px rgba(0, 0, 0, 0.42);
+        }
 
         *,
         *::before,
@@ -23,14 +38,30 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background: #0f1117;
-            font-family: 'Inter', sans-serif;
-            color: #c9ccd1;
+            background:
+                radial-gradient(1000px 700px at 10% 12%, rgba(198, 179, 147, 0.12), transparent 60%),
+                radial-gradient(900px 650px at 90% 82%, rgba(130, 122, 109, 0.1), transparent 62%),
+                linear-gradient(130deg, var(--bg-0), var(--bg-1) 48%, var(--bg-2));
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: var(--text-body);
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.04) 0.6px, transparent 0.6px);
+            background-size: 3px 3px;
+            opacity: 0.25;
+            mix-blend-mode: soft-light;
+            z-index: 1;
         }
 
         #graph-container {
             position: fixed;
             inset: 0;
+            z-index: 2;
         }
 
         #graph-container canvas {
@@ -39,14 +70,27 @@
 
         .panel {
             position: fixed;
-            background: rgba(15, 17, 23, 0.88);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.07);
-            border-radius: 10px;
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--line-soft);
+            border-radius: 14px;
             padding: 16px;
             z-index: 20;
-            transition: opacity .2s;
+            box-shadow: var(--panel-shadow);
+            animation: panel-in 640ms cubic-bezier(.21, .72, .27, 1) both;
+        }
+
+        @keyframes panel-in {
+            from {
+                opacity: 0;
+                transform: translateY(10px) scale(0.985);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
         }
 
         .panel::-webkit-scrollbar {
@@ -72,23 +116,29 @@
             width: 260px;
             max-height: calc(100vh - 32px);
             overflow-y: auto;
+            animation-delay: 90ms;
         }
 
         .plogo {
-            font-size: 1.1rem;
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 1.46rem;
             font-weight: 600;
-            color: #eee;
-            letter-spacing: -0.02em;
+            color: var(--text-strong);
+            letter-spacing: 0.03em;
             margin-bottom: 12px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            justify-content: space-between;
+            gap: 10px;
         }
 
         .plogo span {
-            font-size: .7rem;
-            color: #555;
-            font-weight: 400;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: .58rem;
+            color: var(--text-dim);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
         }
 
         .stat-row {
@@ -97,25 +147,26 @@
             align-items: center;
             padding: 6px 8px;
             border-radius: 6px;
-            background: rgba(255, 255, 255, 0.03);
+            background: rgba(255, 255, 255, 0.024);
             margin-bottom: 4px;
             font-size: 0.72rem;
-            color: #777;
+            color: var(--text-dim);
+            border: 1px solid var(--line-faint);
         }
 
         .stat-row strong {
-            color: #ccc;
-            font-weight: 500;
+            color: var(--text-strong);
+            font-weight: 600;
         }
 
         .section-title {
             font-size: 0.65rem;
             text-transform: uppercase;
             letter-spacing: .1em;
-            color: #444;
+            color: var(--text-dim);
             margin: 14px 0 8px;
             padding-bottom: 4px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid var(--line-faint);
         }
 
         .ctrl-row {
@@ -126,19 +177,19 @@
             display: flex;
             justify-content: space-between;
             font-size: 0.7rem;
-            color: #6a6e78;
+            color: var(--text-dim);
             margin-bottom: 4px;
         }
 
         .ctrl-label span:last-child {
-            color: #aaa;
+            color: var(--text-body);
         }
 
         input[type="range"] {
             width: 100%;
             height: 2px;
             cursor: pointer;
-            accent-color: #7c90db;
+            accent-color: var(--metal);
             background: rgba(255, 255, 255, 0.06);
             border-radius: 2px;
             outline: none;
@@ -151,8 +202,8 @@
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            background: #7c90db;
-            border: 2px solid #0f1117;
+            background: var(--metal);
+            border: 2px solid var(--bg-1);
             cursor: pointer;
         }
 
@@ -161,46 +212,53 @@
             align-items: center;
             gap: 8px;
             font-size: 0.72rem;
-            color: #666;
+            color: var(--text-dim);
             cursor: pointer;
             padding: 3px 0;
             transition: color .15s;
         }
 
         .chk-row:hover {
-            color: #999;
+            color: var(--text-body);
         }
 
         .chk-row input[type="checkbox"] {
             width: 12px;
             height: 12px;
-            accent-color: #7c90db;
+            accent-color: var(--metal);
             cursor: pointer;
         }
 
-        .btn {
+        .btn,
+        .ctrl-btn {
             width: 100%;
-            padding: 7px 10px;
-            margin-top: 6px;
-            background: rgba(124, 144, 219, 0.1);
-            color: #7c90db;
-            border: 1px solid rgba(124, 144, 219, 0.2);
-            border-radius: 6px;
+            padding: 8px 12px;
+            margin-top: 10px;
+            background: var(--metal-soft);
+            color: #f2ecdf;
+            border: 1px solid rgba(198, 179, 147, 0.34);
+            border-radius: 8px;
             cursor: pointer;
             font-family: inherit;
             font-size: 0.72rem;
-            font-weight: 500;
-            transition: background .15s, border-color .15s;
+            font-weight: 600;
+            transition: all .2s cubic-bezier(0.4, 0, 0.2, 1);
             text-align: center;
+            display: block;
+            outline: none;
         }
 
-        .btn:hover {
-            background: rgba(124, 144, 219, 0.18);
-            border-color: rgba(124, 144, 219, 0.35);
+        .btn:hover,
+        .ctrl-btn:hover {
+            background: rgba(198, 179, 147, 0.34);
+            border-color: rgba(198, 179, 147, 0.54);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
 
-        .btn+.btn {
-            margin-top: 4px;
+        .btn:active,
+        .ctrl-btn:active {
+            transform: translateY(0);
         }
 
         .search-wrap {
@@ -214,7 +272,7 @@
             background: rgba(255, 255, 255, 0.04);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 6px;
-            color: #ccc;
+            color: var(--text-body);
             font-family: inherit;
             font-size: 0.78rem;
             outline: none;
@@ -222,7 +280,7 @@
         }
 
         .search-wrap input:focus {
-            border-color: rgba(124, 144, 219, 0.5);
+            border-color: rgba(198, 179, 147, 0.55);
         }
 
         .search-wrap .search-icon {
@@ -231,7 +289,7 @@
             top: 50%;
             transform: translateY(-50%);
             font-size: .8rem;
-            color: #444;
+            color: var(--text-dim);
             pointer-events: none;
         }
 
@@ -247,7 +305,7 @@
         .info-name {
             font-size: 0.82rem;
             font-weight: 600;
-            color: #e0e0e0;
+            color: var(--text-strong);
             word-break: break-all;
             margin-bottom: 6px;
         }
@@ -266,13 +324,13 @@
 
         .info-row {
             font-size: 0.68rem;
-            color: #555;
+            color: var(--text-dim);
             margin-bottom: 3px;
             word-break: break-all;
         }
 
         .info-row strong {
-            color: #777;
+            color: var(--text-body);
         }
 
         #legend {
@@ -284,7 +342,7 @@
             align-items: center;
             gap: 8px;
             font-size: 0.68rem;
-            color: #555;
+            color: var(--text-dim);
             margin-bottom: 5px;
         }
 
@@ -305,15 +363,15 @@
             cursor: pointer;
             border: 1px solid rgba(255, 255, 255, 0.08);
             background: rgba(255, 255, 255, 0.03);
-            color: #555;
+            color: var(--text-dim);
             transition: background .15s, color .15s, border-color .15s;
             font-family: inherit;
         }
 
         .lm-btn.active {
-            background: rgba(124, 144, 219, 0.15);
-            color: #7c90db;
-            border-color: rgba(124, 144, 219, 0.3);
+            background: rgba(198, 179, 147, 0.18);
+            color: #efe6d8;
+            border-color: rgba(198, 179, 147, 0.4);
         }
 
         .legend-dot {
@@ -321,6 +379,53 @@
             height: 8px;
             border-radius: 50%;
             flex-shrink: 0;
+        }
+
+        #hover-chip {
+            position: fixed;
+            z-index: 40;
+            pointer-events: none;
+            transform: translate(16px, 14px);
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(198, 179, 147, 0.44);
+            background: rgba(17, 16, 20, 0.86);
+            color: var(--text-strong);
+            font-size: 0.64rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            opacity: 0;
+            transition: opacity 160ms ease;
+            max-width: 50vw;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            box-shadow: 0 8px 26px rgba(0, 0, 0, 0.45);
+        }
+
+        @media (max-width: 900px) {
+            #panel-left,
+            #panel-right {
+                width: min(42vw, 280px);
+                max-height: min(58vh, 560px);
+            }
+        }
+
+        @media (max-width: 680px) {
+            #panel-left,
+            #panel-right {
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                width: auto;
+                max-height: 36vh;
+            }
+
+            #panel-right {
+                top: auto;
+                bottom: 10px;
+            }
         }
     </style>
 </head>
@@ -337,6 +442,7 @@
         <div class="stat-row"><span>Services</span><strong id="st-services">0</strong></div>
 
         <div class="section-title">Filters</div>
+        <label class="chk-row"><input type="checkbox" id="chk-folders" checked> Folders</label>
         <label class="chk-row"><input type="checkbox" id="chk-files" checked> Files</label>
         <label class="chk-row"><input type="checkbox" id="chk-funcs"> Functions</label>
         <label class="chk-row"><input type="checkbox" id="chk-classes"> Classes</label>
@@ -347,8 +453,8 @@
         <div class="section-title">Labels</div>
         <div class="label-mode-group">
             <button class="lm-btn" id="lm-off">Off</button>
-            <button class="lm-btn active" id="lm-hover">Hover</button>
-            <button class="lm-btn" id="lm-smart">Smart</button>
+            <button class="lm-btn" id="lm-hover">Hover</button>
+            <button class="lm-btn active" id="lm-smart">Smart</button>
             <button class="lm-btn" id="lm-all">All</button>
         </div>
 
@@ -371,9 +477,8 @@
             <div class="ctrl-label"><span>Damping</span><span id="v-damp">0.55</span></div>
             <input type="range" id="c-damp" min="0.01" max="0.99" step="0.01" value="0.55">
         </div>
-
-        <button class="btn" id="btn-resim">↺ Resimulate</button>
-        <button class="btn" id="btn-replay">▶ Replay</button>
+        <button class="ctrl-btn" id="btn-resim" title="Full Replot">↺ Resimulate</button>
+        <button class="ctrl-btn" id="btn-display" title="Apply Parameters">👁 Display</button>
     </div>
 
     <div id="panel-right" class="panel">
@@ -392,19 +497,25 @@
                 <span class="info-badge" id="ni-svc"></span>
             </div>
             <div class="info-row"><strong>Path:</strong> <span id="ni-path"></span></div>
+            <div class="info-row"><strong>Span:</strong> <span id="ni-span"></span></div>
+            <div class="info-row"><strong>Weight:</strong> <span id="ni-weight"></span></div>
+            <div class="info-row"><strong>Profile:</strong> <span id="ni-profile"></span></div>
             <div class="info-row"><strong>Connections:</strong> <span id="ni-conns"></span></div>
         </div>
 
         <div id="legend">
             <div class="section-title">Legend</div>
             <div class="legend-item">
-                <div class="legend-dot" style="background:#fff;opacity:.9"></div> Root
+                <div class="legend-dot" style="background:#f2ede3;opacity:.95"></div> Root
             </div>
             <div class="legend-item">
-                <div class="legend-dot" style="background:#7c90db"></div> Service
+                <div class="legend-dot" style="background:#c8b294"></div> Service
             </div>
             <div class="legend-item">
-                <div class="legend-dot" style="background:#dea584"></div> Rust
+                <div class="legend-dot" style="background:#6f6a61"></div> Folder
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#ce9178"></div> Rust
             </div>
             <div class="legend-item">
                 <div class="legend-dot" style="background:#f1e05a"></div> JavaScript
@@ -413,40 +524,50 @@
                 <div class="legend-dot" style="background:#3178c6"></div> TypeScript
             </div>
             <div class="legend-item">
-                <div class="legend-dot" style="background:#3572A5"></div> Python
+                <div class="legend-dot" style="background:#4b8bbe"></div> Python
             </div>
             <div class="legend-item">
-                <div class="legend-dot" style="background:#00ADD8"></div> Go
+                <div class="legend-dot" style="background:#00add8"></div> Go
             </div>
             <div class="legend-item">
                 <div class="legend-dot" style="background:#b07219"></div> Java
             </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#b99867;border:1px solid rgba(255,255,255,0.34)"></div> Ext Call
+            </div>
         </div>
     </div>
+
+    <div id="hover-chip"></div>
 
     {{ GRAPH_DATA_PLACEHOLDER }}
     <script>
         const RAW = JSON.parse(document.getElementById('graph-data').textContent);
 
         const COLORS = {
-            root: '#ffffff',
-            service: '#7c90db',
-            rust: '#dea584',
+            root: '#f2ede3',
+            service: '#c8b294',
+            folder: '#6f6a61',
+            call: '#b99867',
+            rust: '#ce9178',
             javascript: '#f1e05a',
+            jsx: '#f7c84d',
             typescript: '#3178c6',
-            python: '#3572A5',
-            go: '#00ADD8',
+            tsx: '#2b9fbc',
+            python: '#4b8bbe',
+            go: '#00add8',
             java: '#b07219',
-            default: '#8890a0'
+            external: '#8d8579',
+            default: '#a79f92'
         };
 
         const EDGE_COLORS = {
-            rootlink: 'rgba(255,255,255,0.4)',  // Normal White
-            defines: 'rgba(255,255,255,0.15)', // Light Structural Link
-            servicecall: 'rgba(100,255,180,0.8)',  // Thick Architectural Green
-            imports: 'rgba(140,240,150,0.4)',  // Soft Green
-            calls: 'rgba(220,255,220,0.3)',  // Greenish White
-            default: 'rgba(255,255,255,0.25)' // Normal White
+            rootlink: 'rgba(207,191,159,0.36)',
+            defines: 'rgba(255,255,255,0.11)',
+            servicecall: 'rgba(198,179,147,0.44)',
+            imports: 'rgba(240,234,222,0.16)',
+            calls: 'rgba(198,179,147,0.22)',
+            default: 'rgba(255,255,255,0.14)'
         };
 
         let state = {
@@ -455,19 +576,25 @@
             grav: 0.08,
             damp: 0.55,
 
+            showFolders: true,
             showFiles: true,
             showFuncs: false,
-            showClasses: false,
+            showClasses: true,
             showImports: true,
             showCalls: false,
             arrows: false,
 
-            labelMode: 'hover',
+            labelMode: 'smart',
 
             zoom: 1,
             hover: null,
             focus: null,
-            replaying: false
+            replaying: false,
+            pointer: { x: 0, y: 0 },
+            settleFrame: null,
+
+            isMonolith: false,
+            parentMap: new Map()
         };
 
 
@@ -487,10 +614,55 @@
         }
         function neighbors(id) { return adjMap.get(id) || new Set(); }
 
+        function edgeProfile(id) {
+            const tally = {
+                imports: { count: 0, weight: 0 },
+                calls: { count: 0, weight: 0 },
+                defines: { count: 0, weight: 0 },
+                servicecall: { count: 0, weight: 0 }
+            };
+
+            RAW.edges.forEach(e => {
+                const from = edgeId(e, 'from');
+                const to = edgeId(e, 'to');
+                if (from !== id && to !== id) return;
+                if (!tally[e.relation_type]) return;
+                tally[e.relation_type].count += 1;
+                tally[e.relation_type].weight += e._w || 1;
+            });
+
+            return tally;
+        }
+
+        function updateHoverChip(node) {
+            const chip = document.getElementById('hover-chip');
+            if (!node) {
+                chip.style.opacity = '0';
+                return;
+            }
+            const x = Math.min(state.pointer.x + 12, window.innerWidth - 220);
+            const y = Math.min(state.pointer.y + 10, window.innerHeight - 40);
+            chip.style.left = `${x}px`;
+            chip.style.top = `${y}px`;
+            chip.textContent = `${node.kind} • ${node.name}`;
+            chip.style.opacity = '1';
+        }
+
 
         const serviceSet = new Set();
         RAW.nodes.forEach(n => { if (n.kind === 'service') serviceSet.add(n.service); });
         document.getElementById('st-services').innerText = serviceSet.size;
+
+        const servicesCount = RAW.nodes.filter(n => n.kind === 'service').length;
+        state.isMonolith = (servicesCount <= 1);
+
+        RAW.edges.forEach(e => {
+            if (e.relation_type === 'defines') {
+                const parent = edgeId(e, 'from');
+                const child = edgeId(e, 'to');
+                state.parentMap.set(child, parent);
+            }
+        });
 
         const datalist = document.getElementById('search-list');
         RAW.nodes.forEach(n => {
@@ -499,42 +671,67 @@
             datalist.appendChild(o);
         });
 
+        function stableUnit(seed, salt) {
+            let h = 2166136261 ^ salt;
+            for (let i = 0; i < seed.length; i++) {
+                h ^= seed.charCodeAt(i);
+                h = Math.imul(h, 16777619);
+            }
+            return ((h >>> 0) % 10000) / 10000;
+        }
+
+        function simulationRadius(n) {
+            const base = n.kind === 'root' ? 18 :
+                n.kind === 'service' ? 12 :
+                    n.language === 'folder' ? 8 :
+                        n.kind === 'file' || n.kind === 'module' ? 6 :
+                            n.kind === 'class' ? 4.2 : 3.2;
+            const wBonus = Math.sqrt(n.weight || 0) * 0.8;
+            return base + wBonus;
+        }
+
         function nodeColor(n) {
             if (n.kind === 'root') return COLORS.root;
             if (n.kind === 'service') return COLORS.service;
+            if (n.language === 'folder') return COLORS.folder;
+            if (n.kind === 'call') return COLORS.call;
             return COLORS[n.language] || COLORS.default;
         }
 
-        function nodeRadius(n, zoom) {
-            let base;
-            switch (n.kind) {
-                case 'root': base = 8; break;
-                case 'service': base = 6; break;
-                case 'file':
-                case 'module': base = 4; break;
-                default: base = 2.5; break;
-            }
-            return base;
+        function nodeRadius(n, z) {
+            const base = simulationRadius(n);
+            const wBonus = Math.sqrt(n.weight || 0) * 0.5;
+            return (base + wBonus) / Math.sqrt(z || 1);
         }
 
         function isVisible(n) {
             if (n.kind === 'root' || n.kind === 'service') return true;
             const z = state.zoom;
+            const macro = z < 0.35;
+            const meso = z < 0.9;
 
+            if (n.language === 'folder') {
+                if (!state.showFolders) return false;
+                return !macro;
+            }
             if (n.kind === 'file' || n.kind === 'module') {
-                if (!state.showFiles && n.kind === 'file') return false;
-                if (z < 0.1) return false;
-                return true;
+                if (!state.showFiles) return false;
+                return z >= 0.14;
             }
             if (n.kind === 'function') {
                 if (!state.showFuncs) return false;
-                if (z < 0.5) return false;
-                return true;
+                if (macro || meso) return false;
+                return z >= 0.95;
+            }
+            if (n.kind === 'call') {
+                if (!state.showCalls) return false;
+                if (macro || meso) return false;
+                return z >= 1.05;
             }
             if (n.kind === 'class') {
                 if (!state.showClasses) return false;
-                if (z < 0.3) return false;
-                return true;
+                if (macro) return false;
+                return z >= 0.78;
             }
             return false;
         }
@@ -550,7 +747,14 @@
                 if (!state.showCalls && e.relation_type === 'calls') return false;
                 return true;
             }).map(e => {
-                const w = { rootlink: 6, defines: 4, servicecall: 8, imports: 2.5, calls: 1.5 }[e.relation_type] || 1;
+                const relationScale = {
+                    rootlink: 1.1,
+                    defines: 0.95,
+                    servicecall: 1.35,
+                    imports: 0.9,
+                    calls: 0.75
+                }[e.relation_type] || 1;
+                const w = Math.max(0.8, Math.min(16, (e._w || 1) * relationScale));
                 return { ...e, _w: w };
             });
 
@@ -560,7 +764,7 @@
         const GraphEl = document.getElementById('graph-container');
 
         const Graph = ForceGraph()(GraphEl)
-            .backgroundColor('#0f1117')
+            .backgroundColor('#111014')
             .graphData({ nodes: [], links: [] })
             .nodeId('id')
             .nodeRelSize(1)
@@ -580,22 +784,20 @@
                 const active = state.focus || state.hover;
                 const a = e.source.id || e.source, b = e.target.id || e.target;
                 if (a === active.id || b === active.id) return EDGE_COLORS[e.relation_type] || EDGE_COLORS.default;
-                return 'rgba(80,80,80,0.06)';
+                return 'rgba(255,255,255,0.03)';
             })
-            .linkWidth(e => {
-                const base = e.relation_type === 'rootlink' ? 0.3 :
-                    e.relation_type === 'servicecall' ? 3.0 :
-                    e.relation_type === 'defines' ? 0.6 :
-                    e.relation_type === 'imports' ? 0.8 : 0.5;
+            .linkLineDash(e => e.relation_type === 'calls' ? [2, 2] : null)
+            .linkDirectionalArrowLength(l => state.arrows ? Math.min(Math.max((l._w || 1) * 1.6, 2), 8) : 0)
+            .linkDirectionalArrowRelPos(1)
+            .linkWidth(l => {
+                const base = Math.min(Math.max((l._w || 1) * 0.46, 0.6), 3.8);
                 if (!state.focus && !state.hover) return base;
                 const active = state.focus || state.hover;
-                const a = e.source.id || e.source, b = e.target.id || e.target;
-                return (a === active.id || b === active.id) ? base + 0.8 : base * 0.3;
+                const a = l.source.id || l.source;
+                const b = l.target.id || l.target;
+                if (a === active.id || b === active.id) return Math.min(base + 0.9, 4.8);
+                return Math.max(base * 0.35, 0.4);
             })
-
-            .linkLineDash(e => e.relation_type === 'calls' ? [2, 2] : null)
-            .linkDirectionalArrowLength(e => state.arrows && e.relation_type !== 'rootlink' ? 3 : 0)
-            .linkDirectionalArrowRelPos(1)
             .enableNodeDrag(true)
             .onNodeDrag(() => {
                 Graph.d3Alpha(0.5);
@@ -607,6 +809,7 @@
             .onNodeHover(n => {
                 GraphEl.style.cursor = n ? 'pointer' : 'default';
                 state.hover = n;
+                updateHoverChip(n);
             })
             .onNodeClick(n => {
                 if (state.focus && state.focus.id === n.id) {
@@ -624,12 +827,14 @@
             })
             .onZoom(ev => {
                 state.zoom = ev.k;
+                if (state.hover) updateHoverChip(state.hover);
             })
 
             .nodeCanvasObjectMode(() => 'after')
             .nodeCanvasObject((n, ctx, gScale) => {
                 const z = gScale;
                 const r = nodeRadius(n, z);
+                ctx.imageSmoothingEnabled = true;
 
                 let alpha = 1;
                 if (state.focus) {
@@ -644,14 +849,22 @@
                 ctx.fillStyle = nodeColor(n);
                 ctx.fill();
 
+                const glow = ctx.createRadialGradient(n.x, n.y, r * 0.2, n.x, n.y, r * 2.2);
+                glow.addColorStop(0, 'rgba(255,255,255,0.18)');
+                glow.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, r * 2.1, 0, 2 * Math.PI);
+                ctx.fill();
+
                 if (state.hover && state.hover.id === n.id) {
-                    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-                    ctx.lineWidth = 1.2 / z;
+                    ctx.strokeStyle = 'rgba(243,234,220,0.78)';
+                    ctx.lineWidth = 1.35 / z;
                     ctx.stroke();
                 }
                 if (state.focus && state.focus.id === n.id) {
-                    ctx.strokeStyle = 'rgba(124,144,219,0.9)';
-                    ctx.lineWidth = 1.5 / z;
+                    ctx.strokeStyle = 'rgba(198,179,147,0.96)';
+                    ctx.lineWidth = 1.75 / z;
                     ctx.stroke();
                 }
 
@@ -669,36 +882,37 @@
                     showLabel = isAlwaysLabelled || isHovered || isFocused;
                 } else {
                     showLabel = isAlwaysLabelled ||
-                        (z > 0.3 && (n.kind === 'file' || n.kind === 'module')) ||
-                        (z > 1.2 && n.kind === 'function') ||
+                        (z > 0.32 && (n.kind === 'file' || n.kind === 'module')) ||
+                        (z > 1.15 && n.kind === 'function') ||
                         isHovered || isFocused;
                 }
 
 
                 if (showLabel) {
-                    const fs = Math.min(Math.max(10 / z, 2), 16);
-                    ctx.font = `${n.kind === 'root' || n.kind === 'service' ? 600 : 400} ${fs}px Inter, sans-serif`;
+                    const fs = Math.min(Math.max(11 / z, 4), 16);
+                    ctx.font = `${n.kind === 'root' || n.kind === 'service' ? 700 : 500} ${fs}px "Plus Jakarta Sans", sans-serif`;
                     ctx.textAlign = 'left';
                     ctx.textBaseline = 'middle';
-                    ctx.fillStyle = `rgba(200,202,210,${alpha * 0.85})`;
-                    ctx.fillText(n.name, n.x + r + 3 / z, n.y);
+                    ctx.fillStyle = `rgba(241,236,226,${alpha * 0.9})`;
+                    ctx.fillText(n.name, n.x + r + 4 / z, n.y);
                 }
 
                 ctx.globalAlpha = 1;
             });
 
-        // Persistence
         function saveSettings() {
             localStorage.setItem('grafyx-settings', JSON.stringify({
                 charge: state.charge,
                 dist: state.dist,
                 grav: state.grav,
                 damp: state.damp,
+                showFolders: state.showFolders,
                 showFiles: state.showFiles,
                 showFuncs: state.showFuncs,
                 showClasses: state.showClasses,
                 showImports: state.showImports,
                 showCalls: state.showCalls,
+                arrows: state.arrows,
                 labelMode: state.labelMode
             }));
         }
@@ -710,7 +924,6 @@
                     const parsed = JSON.parse(saved);
                     Object.assign(state, parsed);
 
-                    // Sync UI
                     document.getElementById('c-charge').value = state.charge;
                     document.getElementById('v-charge').innerText = state.charge;
                     document.getElementById('c-dist').value = state.dist;
@@ -720,7 +933,7 @@
                     document.getElementById('c-damp').value = state.damp;
                     document.getElementById('v-damp').innerText = state.damp;
 
-                    ['chk-files', 'chk-funcs', 'chk-classes', 'chk-imports', 'chk-calls'].forEach(id => {
+                    ['chk-folders', 'chk-files', 'chk-funcs', 'chk-classes', 'chk-imports', 'chk-calls', 'chk-arrows'].forEach(id => {
                         const key = chkMap[id];
                         if (key) document.getElementById(id).checked = state[key];
                     });
@@ -731,62 +944,129 @@
             }
         }
 
+        function scheduleSettle(duration = 2000) {
+            if (state.settleFrame) {
+                cancelAnimationFrame(state.settleFrame);
+                state.settleFrame = null;
+            }
+
+            const nodeCount = Graph.graphData().nodes.length || 1;
+            const alphaPeak = Math.min(0.24, Math.max(0.12, 120 / Math.sqrt(nodeCount)));
+            const start = performance.now();
+
+            const tick = now => {
+                const p = Math.min((now - start) / duration, 1);
+                const eased = (1 - p) * (1 - p) * (1 - p);
+                Graph.d3AlphaTarget(alphaPeak * eased);
+                if (p < 1) {
+                    state.settleFrame = requestAnimationFrame(tick);
+                } else {
+                    Graph.d3AlphaTarget(0);
+                    state.settleFrame = null;
+                }
+            };
+
+            Graph.d3Alpha(Math.max(Graph.d3Alpha(), alphaPeak)).d3ReheatSimulation();
+            state.settleFrame = requestAnimationFrame(tick);
+        }
+
         function applyForces(reheat = true) {
             try {
                 const sim = Graph.d3Force;
+                const graphState = Graph.graphData();
+                const nodeCount = graphState.nodes.length || 1;
+                const span = Math.max(340, Math.min(1800, nodeCount * 5.5));
+                const settleMs = Math.max(1200, Math.min(3200, 700 + nodeCount * 2.2));
+                const velDecay = Math.max(0.24, Math.min(0.86, 0.96 - state.damp * 0.62));
+                Graph.d3VelocityDecay(velDecay);
+                Graph.d3AlphaDecay(Math.max(0.022, Math.min(0.048, 26 / (nodeCount + 180))));
 
-                // 1. Charge (Repulsion)
                 let charge = sim('charge');
                 if (!charge) {
-                    charge = d3.forceManyBody().distanceMax(800);
+                    charge = d3.forceManyBody();
                     sim('charge', charge);
                 }
-                charge.strength(state.charge);
+                charge.distanceMax(Math.max(420, span * 1.4));
+                charge.strength(n => {
+                    const scale =
+                        n.kind === 'root' ? 6.5 :
+                            n.kind === 'service' ? 4.8 :
+                                n.kind === 'file' || n.kind === 'module' ? 2.5 : 1.35;
+                    return state.charge * scale;
+                });
 
-                // 2. Center (Stability)
-                let center = sim('center');
-                if (!center) {
-                    center = d3.forceCenter(0, 0);
-                    sim('center', center);
-                }
-
-                // 3. Link (Connections)
                 let link = sim('link');
                 if (link) {
-                    link.distance(e => state.dist / (e._w || 1))
+                    link.distance(e => {
+                        const rel = e.relation_type;
+                        const w = Math.max(1, e._w || 1);
+                        if (rel === 'defines') return state.dist * 0.5 + Math.min(22, w * 3.5);
+                        if (rel === 'rootlink') return state.dist * 1.5 + Math.min(46, w * 5.2);
+                        if (rel === 'servicecall') return state.dist * 2.5 + Math.min(100, w * 8);
+                        if (rel === 'imports') return state.dist * 1.15 + Math.min(30, w * 4.3);
+                        return state.dist * 0.9 + Math.min(20, w * 2.8);
+                    })
                         .strength(e => {
-                            if (e.relation_type === 'rootlink') return 0.6;
-                            if (e.relation_type === 'servicecall') return 0.7; // Stronger service links
-                            if (e.relation_type === 'defines') return 0.4;
-                            return 0.1;
+                            const rel = e.relation_type;
+                            const w = Math.min(1.6, Math.max(0.65, (e._w || 1) * 0.23));
+                            if (rel === 'defines') return 0.64 * w;
+                            if (rel === 'rootlink') return 0.42 * w;
+                            if (rel === 'imports') return 0.26 * w;
+                            if (rel === 'servicecall') return 0.14 * w;
+                            return 0.2 * w;
                         });
                 }
 
-                // 4. Gravity (X/Y Centering)
-                let fX = sim('x'), fY = sim('y');
-                if (!fX) {
-                    sim('x', d3.forceX(0));
-                    sim('y', d3.forceY(0));
-                    fX = sim('x'); fY = sim('y');
+                let forceX = sim('clusterX'), forceY = sim('clusterY');
+                if (!forceX) {
+                    sim('clusterX', d3.forceX().strength(0.06));
+                    sim('clusterY', d3.forceY().strength(0.06));
+                    forceX = sim('clusterX');
+                    forceY = sim('clusterY');
                 }
-                fX.strength(state.grav * 0.4);
-                fY.strength(state.grav * 0.4);
 
-                // 5. Collision
+                const nodesById = new Map(graphState.nodes.map(n => [n.id, n]));
+                forceX.x(n => {
+                    const parentId = state.parentMap.get(n.id);
+                    const parent = nodesById.get(parentId);
+                    return parent ? parent.x : 0;
+                });
+                forceY.y(n => {
+                    const parentId = state.parentMap.get(n.id);
+                    const parent = nodesById.get(parentId);
+                    return parent ? parent.y : 0;
+                });
+
+                let xCenter = sim('xCenter'), yCenter = sim('yCenter');
+                if (!xCenter) {
+                    sim('xCenter', d3.forceX(0));
+                    sim('yCenter', d3.forceY(0));
+                    xCenter = sim('xCenter'); yCenter = sim('yCenter');
+                }
+                xCenter.strength(state.grav * 0.18);
+                yCenter.strength(state.grav * 0.18);
+
                 let collide = sim('collide');
                 if (!collide) {
-                    sim('collide', d3.forceCollide().radius(n => nodeRadius(n, state.zoom) * 2).strength(0.3));
+                    sim('collide', d3.forceCollide().radius(n => simulationRadius(n) * 1.62).strength(0.74));
                 } else {
-                    collide.radius(n => nodeRadius(n, state.zoom) * 2);
+                    collide.radius(n => simulationRadius(n) * 1.62).strength(0.74);
                 }
 
-                // Velocity Decay (Damping)
-                const decay = 1 - state.damp;
-                Graph.d3VelocityDecay(Math.max(0.01, Math.min(0.99, decay)));
+                let boundX = sim('boundX');
+                let boundY = sim('boundY');
+                if (!boundX) {
+                    sim('boundX', d3.forceX(0).strength(0.012));
+                    sim('boundY', d3.forceY(0).strength(0.012));
+                    boundX = sim('boundX');
+                    boundY = sim('boundY');
+                }
+
+                boundX.x(n => Math.max(-span, Math.min(span, n.x || 0)));
+                boundY.y(n => Math.max(-span, Math.min(span, n.y || 0)));
 
                 if (reheat) {
-                    // Set alphaTarget to keep it "liquid" during interaction
-                    Graph.d3AlphaTarget(0.3).d3Alpha(1).d3ReheatSimulation();
+                    scheduleSettle(settleMs);
                 }
             } catch (e) {
                 console.error("Physics Error:", e);
@@ -812,6 +1092,17 @@
                 serviceAngle[s.service] = (i / nSvc) * 2 * Math.PI;
             });
 
+            const anchors = new Map();
+            serviceList.forEach(s => {
+                const a = serviceAngle[s.service] || 0;
+                const r = Math.max(300, nSvc * 58);
+                anchors.set(s.service, {
+                    x: r * Math.cos(a),
+                    y: r * Math.sin(a),
+                    angle: a
+                });
+            });
+
             const gNodes = nodes.map((n, i) => {
                 const prev = prevMap.get(n.id);
                 const out = { ...n };
@@ -822,16 +1113,28 @@
                     if (n.kind === 'root') {
                         out.x = 0; out.y = 0;
                     } else if (n.kind === 'service') {
-                        const a = serviceAngle[n.service] || 0;
-                        const r = Math.max(200, nSvc * 35);
-                        out.x = r * Math.cos(a);
-                        out.y = r * Math.sin(a);
+                        const anchor = anchors.get(n.service) || { x: 0, y: 0, angle: 0 };
+                        out.x = anchor.x;
+                        out.y = anchor.y;
+                    } else if (n.kind === 'file' || n.kind === 'module') {
+                        const anchor = anchors.get(n.service) || { x: 0, y: 0, angle: (i / nodes.length) * Math.PI * 2 };
+                        const jitterA = (stableUnit(n.id, 91) - 0.5) * 0.8;
+                        const dist = 220 + stableUnit(n.id, 53) * 180;
+                        out.x = anchor.x + Math.cos(anchor.angle + jitterA) * dist;
+                        out.y = anchor.y + Math.sin(anchor.angle + jitterA) * dist;
                     } else {
-                        const sA = serviceAngle[n.service] !== undefined ? serviceAngle[n.service] : (i / nodes.length) * 2 * Math.PI;
-                        const jitter = (Math.random() - 0.5) * 1.2;
-                        const dist = 280 + Math.random() * 240;
-                        out.x = dist * Math.cos(sA + jitter);
-                        out.y = dist * Math.sin(sA + jitter);
+                        const parentId = state.parentMap.get(n.id);
+                        const parent = prevMap.get(parentId);
+                        const anchor = anchors.get(n.service) || { x: 0, y: 0, angle: (i / nodes.length) * Math.PI * 2 };
+                        const orbit = 58 + stableUnit(n.id, 37) * 64;
+                        const a = stableUnit(n.id, 11) * Math.PI * 2;
+                        if (parent) {
+                            out.x = parent.x + Math.cos(a) * orbit;
+                            out.y = parent.y + Math.sin(a) * orbit;
+                        } else {
+                            out.x = anchor.x + Math.cos(anchor.angle + a) * (120 + orbit);
+                            out.y = anchor.y + Math.sin(anchor.angle + a) * (120 + orbit);
+                        }
                     }
                 }
                 return out;
@@ -860,7 +1163,10 @@
 
             const newNodes = nodes.map(n => {
                 const ex = curMap.get(n.id);
-                return ex ? ex : { ...n, x: (Math.random() - 0.5) * 600, y: (Math.random() - 0.5) * 600 };
+                if (ex) return ex;
+                const a = stableUnit(n.id, 73) * Math.PI * 2;
+                const d = 140 + stableUnit(n.id, 29) * 210;
+                return { ...n, x: Math.cos(a) * d, y: Math.sin(a) * d };
             });
 
             const newLinks = edges.map(e => ({
@@ -897,12 +1203,18 @@
                 if (n.kind === 'root') return { x: 0, y: 0 };
                 if (n.kind === 'service') {
                     const a = serviceAngle[n.service] || 0;
-                    const r = Math.max(200, nSvc * 35);
+                    const r = Math.max(300, nSvc * 60);
                     return { x: r * Math.cos(a), y: r * Math.sin(a) };
                 }
                 const sA = serviceAngle[n.service] !== undefined ? serviceAngle[n.service] : (i / ordered.length) * 2 * Math.PI;
-                const d = 280 + Math.random() * 240;
-                return { x: d * Math.cos(sA + (Math.random() - 0.5) * 1.2), y: d * Math.sin(sA + (Math.random() - 0.5) * 1.2) };
+                if (n.kind === 'file' || n.kind === 'module') {
+                    const r = 280 + stableUnit(n.id, 101) * 160;
+                    const offset = (stableUnit(n.id, 31) - 0.5) * 0.9;
+                    return { x: r * Math.cos(sA + offset), y: r * Math.sin(sA + offset) };
+                }
+                const dist = 350 + stableUnit(n.id, 63) * 160;
+                const angle = stableUnit(n.id, 67) * Math.PI * 2;
+                return { x: dist * Math.cos(angle + sA), y: dist * Math.sin(angle + sA) };
             }
 
             let idx = 0;
@@ -943,19 +1255,38 @@
 
         function showInfo(n) {
             const info = document.getElementById('node-info');
+            const profile = edgeProfile(n.id);
+            const profileText = [
+                `imp ${profile.imports.count}/${profile.imports.weight.toFixed(1)}`,
+                `call ${profile.calls.count}/${profile.calls.weight.toFixed(1)}`,
+                `def ${profile.defines.count}/${profile.defines.weight.toFixed(1)}`,
+                `svc ${profile.servicecall.count}/${profile.servicecall.weight.toFixed(1)}`
+            ].join(' · ');
             document.getElementById('ni-name').innerText = n.name;
             document.getElementById('ni-kind').innerText = n.kind;
-            document.getElementById('ni-kind').style.cssText = `background:rgba(124,144,219,0.15);color:#7c90db`;
+            document.getElementById('ni-kind').style.cssText = `background:rgba(198,179,147,0.2);color:#e8dcc6`;
             document.getElementById('ni-lang').innerText = n.language || '';
-            document.getElementById('ni-lang').style.cssText = `background:rgba(200,200,200,0.08);color:#888`;
+            document.getElementById('ni-lang').style.cssText = `background:rgba(255,255,255,0.08);color:#b8b1a4`;
             document.getElementById('ni-svc').innerText = n.service || '';
-            document.getElementById('ni-svc').style.cssText = `background:rgba(200,200,200,0.06);color:#666`;
+            document.getElementById('ni-svc').style.cssText = `background:rgba(255,255,255,0.06);color:#9a9388`;
             document.getElementById('ni-path').innerText = n.file_path || '';
+            document.getElementById('ni-span').innerText = `${n.start_line || 0}-${n.end_line || 0}`;
+            document.getElementById('ni-weight').innerText = (n.weight || 0).toFixed(2);
+            document.getElementById('ni-profile').innerText = profileText;
             document.getElementById('ni-conns').innerText = neighbors(n.id).size;
             info.style.display = 'block';
         }
 
-        // Control bindings
+        GraphEl.addEventListener('mousemove', ev => {
+            state.pointer.x = ev.clientX;
+            state.pointer.y = ev.clientY;
+            if (state.hover) updateHoverChip(state.hover);
+        });
+
+        GraphEl.addEventListener('mouseleave', () => {
+            updateHoverChip(null);
+        });
+
         [
             ['c-charge', 'v-charge', 'charge'],
             ['c-dist', 'v-dist', 'dist'],
@@ -967,9 +1298,8 @@
                 const v = parseFloat(e.target.value);
                 state[key] = v;
                 document.getElementById(valId).innerText = v;
-                applyForces(true);
+                applyForces(false);
             });
-            // Set alphaTarget to 0 when done dragging to allow cool-down
             el.addEventListener('pointerup', () => {
                 Graph.d3AlphaTarget(0);
                 saveSettings();
@@ -981,6 +1311,7 @@
         });
 
         const chkMap = {
+            'chk-folders': 'showFolders',
             'chk-files': 'showFiles',
             'chk-funcs': 'showFuncs',
             'chk-classes': 'showClasses',
@@ -992,7 +1323,6 @@
             document.getElementById(id).addEventListener('change', e => {
                 state[key] = e.target.checked;
                 saveSettings();
-                if (state.replaying) return;
                 softRefresh();
             });
         });
@@ -1009,13 +1339,19 @@
 
 
         document.getElementById('btn-resim').addEventListener('click', () => {
-
+            state.replaying = false;
+            Graph.graphData().nodes.forEach(n => {
+                n.x = undefined; n.y = undefined;
+                n.vx = undefined; n.vy = undefined;
+                n.fx = undefined; n.fy = undefined;
+            });
             buildGraphData(true);
         });
 
-        document.getElementById('btn-replay').addEventListener('click', () => {
+        document.getElementById('btn-display').addEventListener('click', () => {
             state.replaying = false;
-            setTimeout(playReplay, 80);
+            softRefresh();
+            applyForces(true);
         });
 
         document.getElementById('search-in').addEventListener('change', e => {

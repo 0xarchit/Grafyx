@@ -9,6 +9,8 @@ use anyhow::{Result, Context};
 
 pub struct Storage;
 
+const SCANNER_VERSION: &str = "v3_precise_ir";
+
 impl Storage {
     pub fn save_json(graph: &Graph, output_dir: &Path) -> Result<()> {
         let file_path = output_dir.join("grafyx.json");
@@ -40,8 +42,6 @@ impl Storage {
             [],
         )?;
 
-        // Migration: ensure files table has hash column and remove old ones if they exist
-        // Note: For simplicity in this upgrade, we just ensure the column exists.
         let _ = conn.execute("ALTER TABLE files ADD COLUMN hash TEXT", []);
 
         conn.execute(
@@ -53,23 +53,27 @@ impl Storage {
                 file_path TEXT,
                 service TEXT,
                 start_line INTEGER,
-                end_line INTEGER
+                end_line INTEGER,
+                weight REAL
             )",
             [],
         )?;
 
-        // Simple migration to add service column if it doesn't exist
         let _ = conn.execute("ALTER TABLE nodes ADD COLUMN service TEXT", []);
+        let _ = conn.execute("ALTER TABLE nodes ADD COLUMN weight REAL", []);
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS edges (
                 from_node_id TEXT,
                 to_node_id TEXT,
                 relation_type TEXT,
+                weight REAL,
                 PRIMARY KEY (from_node_id, to_node_id, relation_type)
             )",
             [],
         )?;
+
+        let _ = conn.execute("ALTER TABLE edges ADD COLUMN weight REAL", []);
         
         conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_file_path ON nodes(file_path)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_edges_from ON edges(from_node_id)", [])?;
@@ -78,9 +82,10 @@ impl Storage {
     }
 
     pub fn get_file_hash(conn: &Connection, path: &str) -> Option<String> {
+        let versioned_path = format!("{}:{}", SCANNER_VERSION, path);
         conn.query_row(
             "SELECT hash FROM files WHERE path = ?1",
-            params![path],
+            params![versioned_path],
             |row| row.get(0),
         ).ok()
     }
@@ -89,7 +94,7 @@ impl Storage {
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
 
-        let mut stmt = conn.prepare("SELECT id, kind, name, language, file_path, start_line, end_line, service FROM nodes WHERE file_path = ?1")?;
+        let mut stmt = conn.prepare("SELECT id, kind, name, language, file_path, start_line, end_line, service, weight FROM nodes WHERE file_path = ?1")?;
         let node_iter = stmt.query_map(params![path], |row| {
             let kind_str: String = row.get(1)?;
             let kind = std::str::FromStr::from_str(&kind_str).unwrap_or_else(|_| {
@@ -105,6 +110,7 @@ impl Storage {
                 start_line: row.get(5)?,
                 end_line: row.get(6)?,
                 service: row.get(7)?,
+                weight: row.get(8).unwrap_or(0.0),
             })
         })?;
 
@@ -117,7 +123,7 @@ impl Storage {
         // Incoming edges are loaded when their source files are processed.
         if !nodes.is_empty() {
             let mut stmt = conn.prepare("
-                SELECT from_node_id, to_node_id, relation_type 
+                SELECT from_node_id, to_node_id, relation_type, weight 
                 FROM edges 
                 WHERE from_node_id IN (SELECT id FROM nodes WHERE file_path = ?1)
             ")?;
@@ -132,6 +138,7 @@ impl Storage {
                     from_node_id: row.get(0)?,
                     to_node_id: row.get(1)?,
                     relation_type,
+                    _w: row.get(3).unwrap_or(1.0),
                 })
             })?;
 
@@ -144,9 +151,10 @@ impl Storage {
     }
 
     pub fn update_file_hash(conn: &Connection, path: &str, hash: &str) -> Result<()> {
+        let versioned_path = format!("{}:{}", SCANNER_VERSION, path);
         conn.execute(
             "INSERT OR REPLACE INTO files (path, hash) VALUES (?1, ?2)",
-            params![path, hash],
+            params![versioned_path, hash],
         )?;
         Ok(())
     }
@@ -178,7 +186,7 @@ impl Storage {
             for node in &graph.nodes {
                 let kind_str = node.kind.to_string();
                 tx.execute(
-                    "INSERT OR REPLACE INTO nodes (id, kind, name, language, file_path, service, start_line, end_line) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    "INSERT OR REPLACE INTO nodes (id, kind, name, language, file_path, service, start_line, end_line, weight) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                     params![
                         node.id,
                         kind_str,
@@ -187,7 +195,8 @@ impl Storage {
                         node.file_path,
                         node.service,
                         node.start_line,
-                        node.end_line
+                        node.end_line,
+                        node.weight
                     ],
                 )?;
             }
@@ -195,11 +204,12 @@ impl Storage {
             for edge in &graph.edges {
                 let rel_str = edge.relation_type.to_string();
                 tx.execute(
-                    "INSERT OR REPLACE INTO edges (from_node_id, to_node_id, relation_type) VALUES (?1, ?2, ?3)",
+                    "INSERT OR REPLACE INTO edges (from_node_id, to_node_id, relation_type, weight) VALUES (?1, ?2, ?3, ?4)",
                     params![
                         edge.from_node_id,
                         edge.to_node_id,
-                        rel_str
+                        rel_str,
+                        edge._w
                     ],
                 )?;
             }
@@ -214,7 +224,7 @@ impl Storage {
         let json_data = serde_json::to_string(graph).context("Failed to serialize graph for HTML")?;
         let safe_json = json_data.replace("</script>", "<\\/script>");
         
-        let data_script = format!("<script id=\"graph-data\" type=\"application/json\">{}</script>", safe_json);
+        let data_script = format!(r#"<script id="graph-data" type="application/json">{}</script>"#, safe_json);
         let final_html = template.replace("{{ GRAPH_DATA_PLACEHOLDER }}", &data_script);
         
         fs::write(&file_path, final_html).with_context(|| format!("Failed to write HTML report to {:?}", file_path))?;
@@ -241,12 +251,13 @@ mod tests {
             service: "core".to_string(),
             start_line: 10,
             end_line: 20,
+            weight: 0.0,
         };
 
         // Test manual insertion and load to verify logic
         let kind_str = node.kind.to_string();
         conn.execute(
-            "INSERT INTO nodes (id, kind, name, language, file_path, service, start_line, end_line) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO nodes (id, kind, name, language, file_path, service, start_line, end_line, weight) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
                 node.id,
                 kind_str,
@@ -255,7 +266,8 @@ mod tests {
                 node.file_path,
                 node.service,
                 node.start_line,
-                node.end_line
+                node.end_line,
+                node.weight
             ],
         ).unwrap();
 
@@ -293,6 +305,7 @@ mod tests {
                         service: "test".to_string(),
                         start_line: 0,
                         end_line: 0,
+                        weight: 0.0,
                     };
                     let graph = Graph { nodes: vec![node], edges: vec![] };
                     Storage::save_sqlite(&graph, &path).unwrap();

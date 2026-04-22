@@ -33,9 +33,10 @@ Visualize Your Codebase Like Never Before
 4. [Features](#-features)
 5. [Live Physics Engine](#-live-physics-engine)
 6. [Installation](#-installation)
-7. [Usage](#-usage)
-8. [Configuration](#-configuration)
-9. [Attribution](#-attribution)
+7. [Quick Start for New Users](#-quick-start-for-new-users)
+8. [Usage](#-usage)
+9. [Configuration](#-configuration)
+10. [Attribution](#-attribution)
 
 ---
 
@@ -142,6 +143,27 @@ cargo build --release
 
 ---
 
+## ✦ Quick Start for New Users
+
+If this is your first time using Grafyx, run one of the two commands below from your project root.
+
+### Scan Command
+```bash
+grafyx --dirs <direcctories space separated> --output ./<output folder>
+```
+
+Example:
+```bash
+grafyx --dirs tool web --output ./output-test
+```
+
+After scan completes:
+- Open `./<output folder>/index.html` in your browser.
+- Use `grafyx.json` for readable data export.
+- Use `grafyx.db` for fast programmatic queries.
+
+---
+
 ## ⌗ Usage
 
 Grafyx handles its own lifecycle and codebase mapping.
@@ -150,15 +172,21 @@ Grafyx handles its own lifecycle and codebase mapping.
 
 | Command | Alias | Description |
 |---------|-------|-------------|
-| `grafyx scan <path>` | - | Scans the directory and generates architectural models. |
+| `grafyx --dirs <directories...> --output ./<output-folder>` | - | Shortcut command to scan directories. |
 | `grafyx install` | `i` | Installs the binary permanently to your system PATH. |
 | `grafyx upgrade` | `u` | Automatically updates Grafyx to the latest version. |
 | `grafyx uninstall` | - | Cleanly removes Grafyx from your system. |
 | `grafyx --version` | - | Display current version. |
 
-### Smart Features
-- **Background Checks**: Grafyx silently checks for updates after every scan.
-- **Persistence**: Your visual configuration is saved locally for a seamless experience.
+### Scan Flags
+
+| Flag | Description |
+|------|-------------|
+| `--dirs` | One or more directories to scan, space separated. |
+| `--output` | Output folder for `grafyx.json`, `grafyx.db`, and `index.html`. |
+| `--format` | Output type: `json`, `sqlite`, or `both` (default). |
+| `--ignore` | Optional ignore patterns to exclude files/directories. |
+
 
 ---
 
