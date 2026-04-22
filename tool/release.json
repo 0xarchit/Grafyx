@@ -24,5 +24,16 @@
       "fix self-update",
       "Enhanced core logic"
     ]
+  },
+  "0.1.3": {
+    "Note": "[Beta release] may be unstable and has bugs",
+    "Description": "v0.1.3 release bug fix and performance improvements",
+    "Features": [
+      "Fixed blank canvas bug by restoring graph data injection placeholder",
+      "Eliminated numerical instability and NaN-related rendering crashes",
+      "Stabilized graph physics to prevent node jitter and erratic movement",
+      "Refactored frontend to use standard ForceGraph API for better compatibility",
+      "Optimized rendering lifecycle for smoother initial visualization load"
+    ]
   }
 }

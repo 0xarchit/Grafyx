@@ -444,7 +444,7 @@
         <div class="section-title">Filters</div>
         <label class="chk-row"><input type="checkbox" id="chk-folders" checked> Folders</label>
         <label class="chk-row"><input type="checkbox" id="chk-files" checked> Files</label>
-        <label class="chk-row"><input type="checkbox" id="chk-funcs"> Functions</label>
+        <label class="chk-row"><input type="checkbox" id="chk-funcs" checked> Functions</label>
         <label class="chk-row"><input type="checkbox" id="chk-classes"> Classes</label>
         <label class="chk-row"><input type="checkbox" id="chk-imports" checked> Imports</label>
         <label class="chk-row"><input type="checkbox" id="chk-calls"> Calls</label>
@@ -571,17 +571,17 @@
         };
 
         let state = {
-            charge: -80,
+            charge: -100,
             dist: 60,
             grav: 0.08,
             damp: 0.55,
 
             showFolders: true,
             showFiles: true,
-            showFuncs: false,
+            showFuncs: true,
             showClasses: true,
             showImports: true,
-            showCalls: false,
+            showCalls: true,
             arrows: false,
 
             labelMode: 'smart',
@@ -593,7 +593,6 @@
             pointer: { x: 0, y: 0 },
             settleFrame: null,
 
-            isMonolith: false,
             parentMap: new Map()
         };
 
@@ -686,7 +685,7 @@
                     n.language === 'folder' ? 8 :
                         n.kind === 'file' || n.kind === 'module' ? 6 :
                             n.kind === 'class' ? 4.2 : 3.2;
-            const wBonus = Math.sqrt(n.weight || 0) * 0.8;
+            const wBonus = Math.sqrt(Math.max(0, n.weight || 0)) * 0.8;
             return base + wBonus;
         }
 
@@ -706,73 +705,64 @@
 
         function isVisible(n) {
             if (n.kind === 'root' || n.kind === 'service') return true;
-            const z = state.zoom;
-            const macro = z < 0.35;
-            const meso = z < 0.9;
-
-            if (n.language === 'folder') {
-                if (!state.showFolders) return false;
-                return !macro;
-            }
-            if (n.kind === 'file' || n.kind === 'module') {
-                if (!state.showFiles) return false;
-                return z >= 0.14;
-            }
-            if (n.kind === 'function') {
-                if (!state.showFuncs) return false;
-                if (macro || meso) return false;
-                return z >= 0.95;
-            }
-            if (n.kind === 'call') {
-                if (!state.showCalls) return false;
-                if (macro || meso) return false;
-                return z >= 1.05;
-            }
-            if (n.kind === 'class') {
-                if (!state.showClasses) return false;
-                if (macro) return false;
-                return z >= 0.78;
-            }
+            if (n.language === 'folder') return state.showFolders;
+            if (n.kind === 'file' || n.kind === 'module') return state.showFiles;
+            if (n.kind === 'function') return state.showFuncs;
+            if (n.kind === 'call') return state.showCalls;
+            if (n.kind === 'class') return state.showClasses;
             return false;
         }
 
         function computeGraph() {
-            const visNodes = RAW.nodes.filter(isVisible);
-            const visSet = new Set(visNodes.map(n => n.id));
-
-            const visEdges = RAW.edges.filter(e => {
-                const a = edgeId(e, 'from'), b = edgeId(e, 'to');
-                if (!visSet.has(a) || !visSet.has(b)) return false;
-                if (!state.showImports && e.relation_type === 'imports') return false;
-                if (!state.showCalls && e.relation_type === 'calls') return false;
-                return true;
-            }).map(e => {
-                const relationScale = {
-                    rootlink: 1.1,
-                    defines: 0.95,
-                    servicecall: 1.35,
-                    imports: 0.9,
-                    calls: 0.75
-                }[e.relation_type] || 1;
-                const w = Math.max(0.8, Math.min(16, (e._w || 1) * relationScale));
-                return { ...e, _w: w };
-            });
-
-            return { nodes: visNodes, edges: visEdges };
+            const nodes = RAW.nodes.filter(isVisible);
+            const nodeIds = new Set(nodes.map(n => n.id));
+            const links = RAW.edges
+                .filter(e => {
+                    const a = edgeId(e, 'from');
+                    const b = edgeId(e, 'to');
+                    if (!nodeIds.has(a) || !nodeIds.has(b)) return false;
+                    if (!state.showImports && e.relation_type === 'imports') return false;
+                    if (!state.showCalls && e.relation_type === 'calls') return false;
+                    return true;
+                })
+                .map(e => ({
+                    source: edgeId(e, 'from'),
+                    target: edgeId(e, 'to'),
+                    relation_type: e.relation_type,
+                    _w: e._w || 1
+                }));
+            return { nodes, links };
         }
 
         const GraphEl = document.getElementById('graph-container');
 
         const Graph = ForceGraph()(GraphEl)
             .backgroundColor('#111014')
-            .graphData({ nodes: [], links: [] })
+            .graphData(computeGraph())
             .nodeId('id')
+            .nodeVisibility(n => {
+                const z = state.zoom;
+                if (n.kind === 'root' || n.kind === 'service') return true;
+                if (n.language === 'folder') return z >= 0.35;
+                if (n.kind === 'file' || n.kind === 'module') return z >= 0.14;
+                if (n.kind === 'function' || n.kind === 'class') return z >= 0.4;
+                if (n.kind === 'call') return z >= 0.8;
+                return true;
+            })
+            .linkVisibility(l => {
+                const z = state.zoom;
+                const n = l.target;
+                if (!n) return true;
+                if (n.kind === 'function' || n.kind === 'class') return z >= 0.4;
+                if (n.kind === 'call') return z >= 0.8;
+                return true;
+            })
             .nodeRelSize(1)
             .nodeVal(n => {
-                if (n.kind === 'root') return 64;
-                if (n.kind === 'service') return 36;
-                if (n.kind === 'file' || n.kind === 'module') return 16;
-                return 6;
+                if (n.kind === 'root') return 80;
+                if (n.kind === 'service') return 50;
+                if (n.kind === 'file' || n.kind === 'module') return 25;
+                return 10;
             })
             .nodeColor(nodeColor)
             .nodeLabel(() => '')
@@ -800,7 +790,7 @@
             })
             .enableNodeDrag(true)
             .onNodeDrag(() => {
-                Graph.d3Alpha(0.5);
+                Graph.d3AlphaTarget(0.3).d3ReheatSimulation();
             })
             .onNodeDragEnd(n => {
                 n.fx = n.x; n.fy = n.y;
@@ -829,11 +819,14 @@
                 state.zoom = ev.k;
                 if (state.hover) updateHoverChip(state.hover);
             })
-
+            .d3AlphaDecay(0.04)
+            .d3VelocityDecay(0.3)
+            .cooldownTicks(150)
             .nodeCanvasObjectMode(() => 'after')
             .nodeCanvasObject((n, ctx, gScale) => {
                 const z = gScale;
-                const r = nodeRadius(n, z);
+                const r = simulationRadius(n);
+                if (isNaN(n.x) || isNaN(n.y) || isNaN(r)) return;
                 ctx.imageSmoothingEnabled = true;
 
                 let alpha = 1;
@@ -948,48 +941,20 @@
             if (activeBtn) activeBtn.classList.add('active');
         }
 
-        function scheduleSettle(duration = 2000) {
-            if (state.settleFrame) {
-                cancelAnimationFrame(state.settleFrame);
-                state.settleFrame = null;
-            }
-
-            const nodeCount = Graph.graphData().nodes.length || 1;
-            const alphaPeak = Math.min(0.24, Math.max(0.12, 120 / Math.sqrt(nodeCount)));
-            const start = performance.now();
-
-            const tick = now => {
-                const p = Math.min((now - start) / duration, 1);
-                const eased = (1 - p) * (1 - p) * (1 - p);
-                Graph.d3AlphaTarget(alphaPeak * eased);
-                if (p < 1) {
-                    state.settleFrame = requestAnimationFrame(tick);
-                } else {
-                    Graph.d3AlphaTarget(0);
-                    state.settleFrame = null;
-                }
-            };
-
-            Graph.d3Alpha(Math.max(Graph.d3Alpha(), alphaPeak)).d3ReheatSimulation();
-            state.settleFrame = requestAnimationFrame(tick);
+        function scheduleSettle() {
+            Graph.d3ReheatSimulation();
         }
 
-        function applyForces(reheat = true) {
+        function applyForces() {
             try {
-                const sim = Graph.d3Force;
-                const graphState = Graph.graphData();
-                const nodeCount = graphState.nodes.length || 1;
+                const nodeCount = Graph.graphData().nodes.length || 1;
                 const span = Math.max(340, Math.min(1800, nodeCount * 5.5));
-                const settleMs = Math.max(1200, Math.min(3200, 700 + nodeCount * 2.2));
-                const velDecay = Math.max(0.24, Math.min(0.86, 0.96 - state.damp * 0.62));
-                Graph.d3VelocityDecay(velDecay);
-                Graph.d3AlphaDecay(Math.max(0.022, Math.min(0.048, 26 / (nodeCount + 180))));
+                
+                Graph.d3VelocityDecay(0.3);
+                Graph.d3AlphaDecay(0.02);
 
-                let charge = sim('charge');
-                if (!charge) {
-                    charge = d3.forceManyBody();
-                    sim('charge', charge);
-                }
+                Graph.d3Force('charge', d3.forceManyBody());
+                const charge = Graph.d3Force('charge');
                 charge.distanceMax(Math.max(420, span * 1.4));
                 charge.strength(n => {
                     const scale =
@@ -999,7 +964,7 @@
                     return state.charge * scale;
                 });
 
-                let link = sim('link');
+                const link = Graph.d3Force('link');
                 if (link) {
                     link.distance(e => {
                         const rel = e.relation_type;
@@ -1021,166 +986,107 @@
                         });
                 }
 
-                let forceX = sim('clusterX'), forceY = sim('clusterY');
+                let forceX = Graph.d3Force('clusterX'), forceY = Graph.d3Force('clusterY');
                 if (!forceX) {
-                    sim('clusterX', d3.forceX().strength(0.06));
-                    sim('clusterY', d3.forceY().strength(0.06));
-                    forceX = sim('clusterX');
-                    forceY = sim('clusterY');
+                    Graph.d3Force('clusterX', d3.forceX().strength(0.06));
+                    Graph.d3Force('clusterY', d3.forceY().strength(0.06));
+                    forceX = Graph.d3Force('clusterX');
+                    forceY = Graph.d3Force('clusterY');
                 }
 
-                const nodesById = new Map(graphState.nodes.map(n => [n.id, n]));
+                const nodesById = new Map(Graph.graphData().nodes.map(n => [n.id, n]));
                 forceX.x(n => {
                     const parentId = state.parentMap.get(n.id);
                     const parent = nodesById.get(parentId);
-                    return parent ? parent.x : 0;
+                    return parent ? (parent.x || 0) : 0;
                 });
                 forceY.y(n => {
                     const parentId = state.parentMap.get(n.id);
                     const parent = nodesById.get(parentId);
-                    return parent ? parent.y : 0;
+                    return parent ? (parent.y || 0) : 0;
                 });
 
-                let xCenter = sim('xCenter'), yCenter = sim('yCenter');
+                let xCenter = Graph.d3Force('xCenter'), yCenter = Graph.d3Force('yCenter');
                 if (!xCenter) {
-                    sim('xCenter', d3.forceX(0));
-                    sim('yCenter', d3.forceY(0));
-                    xCenter = sim('xCenter'); yCenter = sim('yCenter');
+                    Graph.d3Force('xCenter', d3.forceX(0));
+                    Graph.d3Force('yCenter', d3.forceY(0));
+                    xCenter = Graph.d3Force('xCenter'); yCenter = Graph.d3Force('yCenter');
                 }
                 xCenter.strength(state.grav * 0.18);
                 yCenter.strength(state.grav * 0.18);
 
-                let collide = sim('collide');
+                let collide = Graph.d3Force('collide');
                 if (!collide) {
-                    sim('collide', d3.forceCollide().radius(n => simulationRadius(n) * 1.62).strength(0.74));
+                    Graph.d3Force('collide', d3.forceCollide().radius(n => simulationRadius(n) * 1.62).strength(0.74));
                 } else {
                     collide.radius(n => simulationRadius(n) * 1.62).strength(0.74);
                 }
 
-                let boundX = sim('boundX');
-                let boundY = sim('boundY');
+                let boundX = Graph.d3Force('boundX');
+                let boundY = Graph.d3Force('boundY');
                 if (!boundX) {
-                    sim('boundX', d3.forceX(0).strength(0.012));
-                    sim('boundY', d3.forceY(0).strength(0.012));
-                    boundX = sim('boundX');
-                    boundY = sim('boundY');
+                    Graph.d3Force('boundX', d3.forceX(0).strength(0.012));
+                    Graph.d3Force('boundY', d3.forceY(0).strength(0.012));
+                    boundX = Graph.d3Force('boundX');
+                    boundY = Graph.d3Force('boundY');
                 }
 
                 boundX.x(n => Math.max(-span, Math.min(span, n.x || 0)));
                 boundY.y(n => Math.max(-span, Math.min(span, n.y || 0)));
 
-                if (reheat) {
-                    scheduleSettle(settleMs);
-                }
+                scheduleSettle();
             } catch (e) {
                 console.error("Physics Error:", e);
             }
         }
 
-
-
-        function buildGraphData(replot = false) {
-            const { nodes, edges } = computeGraph();
+        function updateGraph(replot = false) {
+            if (state.replaying) return;
+            const { nodes, links } = computeGraph();
             document.getElementById('st-nodes').innerText = nodes.length;
-            document.getElementById('st-edges').innerText = edges.length;
+            document.getElementById('st-edges').innerText = links.length;
 
-            const prevMap = new Map();
+            const prevNodes = new Map();
             if (!replot) {
-                Graph.graphData().nodes.forEach(pn => prevMap.set(pn.id, pn));
+                Graph.graphData().nodes.forEach(n => prevNodes.set(n.id, n));
             }
 
             const serviceList = nodes.filter(n => n.kind === 'service');
             const nSvc = serviceList.length;
             const serviceAngle = {};
-            serviceList.forEach((s, i) => {
-                serviceAngle[s.service] = (i / nSvc) * 2 * Math.PI;
-            });
+            serviceList.forEach((s, i) => serviceAngle[s.service] = (i / nSvc) * 2 * Math.PI);
 
             const anchors = new Map();
             serviceList.forEach(s => {
                 const a = serviceAngle[s.service] || 0;
                 const r = Math.max(300, nSvc * 58);
-                anchors.set(s.service, {
-                    x: r * Math.cos(a),
-                    y: r * Math.sin(a),
-                    angle: a
-                });
+                anchors.set(s.service, { x: r * Math.cos(a), y: r * Math.sin(a), angle: a });
             });
 
             const gNodes = nodes.map((n, i) => {
-                const prev = prevMap.get(n.id);
-                const out = { ...n };
-                if (prev) {
-                    out.x = prev.x; out.y = prev.y;
-                    out.vx = prev.vx; out.vy = prev.vy;
-                } else {
-                    if (n.kind === 'root') {
-                        out.x = 0; out.y = 0;
-                    } else if (n.kind === 'service') {
-                        const anchor = anchors.get(n.service) || { x: 0, y: 0, angle: 0 };
-                        out.x = anchor.x;
-                        out.y = anchor.y;
-                    } else if (n.kind === 'file' || n.kind === 'module') {
-                        const anchor = anchors.get(n.service) || { x: 0, y: 0, angle: (i / nodes.length) * Math.PI * 2 };
-                        const jitterA = (stableUnit(n.id, 91) - 0.5) * 0.8;
-                        const dist = 220 + stableUnit(n.id, 53) * 180;
-                        out.x = anchor.x + Math.cos(anchor.angle + jitterA) * dist;
-                        out.y = anchor.y + Math.sin(anchor.angle + jitterA) * dist;
-                    } else {
-                        const parentId = state.parentMap.get(n.id);
-                        const parent = prevMap.get(parentId);
-                        const anchor = anchors.get(n.service) || { x: 0, y: 0, angle: (i / nodes.length) * Math.PI * 2 };
-                        const orbit = 58 + stableUnit(n.id, 37) * 64;
-                        const a = stableUnit(n.id, 11) * Math.PI * 2;
-                        if (parent) {
-                            out.x = parent.x + Math.cos(a) * orbit;
-                            out.y = parent.y + Math.sin(a) * orbit;
-                        } else {
-                            out.x = anchor.x + Math.cos(anchor.angle + a) * (120 + orbit);
-                            out.y = anchor.y + Math.sin(anchor.angle + a) * (120 + orbit);
-                        }
-                    }
+                const prev = prevNodes.get(n.id);
+                if (prev && !isNaN(prev.x)) return { ...n, x: prev.x, y: prev.y, vx: prev.vx, vy: prev.vy };
+                
+                if (n.kind === 'root') return { ...n, x: 0, y: 0 };
+                if (n.kind === 'service') {
+                    const a = anchors.get(n.service) || { x: 0, y: 0 };
+                    return { ...n, x: a.x, y: a.y };
                 }
-                return out;
+                
+                const anchor = anchors.get(n.service) || { x: 0, y: 0, angle: (i / (nodes.length || 1)) * 2 * Math.PI };
+                const a = (n.kind === 'file' || n.kind === 'module') 
+                    ? anchor.angle + (stableUnit(n.id, 91) - 0.5) * 0.8
+                    : stableUnit(n.id, 11) * Math.PI * 2;
+                const d = (n.kind === 'file' || n.kind === 'module')
+                    ? 220 + stableUnit(n.id, 53) * 180
+                    : 120 + 58 + stableUnit(n.id, 37) * 64;
+                
+                const x = anchor.x + Math.cos(a) * d;
+                const y = anchor.y + Math.sin(a) * d;
+                return { ...n, x: isNaN(x) ? 0 : x, y: isNaN(y) ? 0 : y };
             });
 
-            const gLinks = edges.map(e => ({
-                source: edgeId(e, 'from'),
-                target: edgeId(e, 'to'),
-                relation_type: e.relation_type,
-                _w: e._w
-            }));
-
-            Graph.graphData({ nodes: gNodes, links: gLinks });
-            applyForces();
-        }
-
-        function softRefresh() {
-            if (state.replaying) return;
-            const { nodes, edges } = computeGraph();
-            document.getElementById('st-nodes').innerText = nodes.length;
-            document.getElementById('st-edges').innerText = edges.length;
-
-            const cur = Graph.graphData();
-            const curMap = new Map(cur.nodes.map(n => [n.id, n]));
-            const curLinkMap = new Map(cur.links.map(l => [`${l.source.id || l.source}|${l.target.id || l.target}|${l.relation_type}`, l]));
-
-            const newNodes = nodes.map(n => {
-                const ex = curMap.get(n.id);
-                if (ex) return ex;
-                const a = stableUnit(n.id, 73) * Math.PI * 2;
-                const d = 140 + stableUnit(n.id, 29) * 210;
-                return { ...n, x: Math.cos(a) * d, y: Math.sin(a) * d };
-            });
-
-            const newLinks = edges.map(e => ({
-                source: edgeId(e, 'from'),
-                target: edgeId(e, 'to'),
-                relation_type: e.relation_type,
-                _w: e._w
-            }));
-
-            Graph.graphData({ nodes: newNodes, links: newLinks });
+            Graph.graphData({ nodes: gNodes, links: links });
             applyForces();
         }
 
@@ -1189,7 +1095,7 @@
             if (state.replaying) return;
             state.replaying = true;
 
-            const { nodes, edges } = computeGraph();
+            const { nodes, links: edges } = computeGraph();
             const roots = nodes.filter(n => n.kind === 'root');
             const svcs = nodes.filter(n => n.kind === 'service');
             const files = nodes.filter(n => n.kind === 'file' || n.kind === 'module');
@@ -1227,7 +1133,7 @@
             Graph.graphData({ nodes: [], links: [] });
 
             const tick = setInterval(() => {
-                if (!state.replaying) { clearInterval(tick); buildGraphData(false); return; }
+                if (!state.replaying) { clearInterval(tick); updateGraph(false); return; }
                 const isStruct = idx < (roots.length + svcs.length);
                 const batch = isStruct ? 1 : Math.min(12, Math.ceil(ordered.length / 60));
 
@@ -1290,7 +1196,6 @@
         GraphEl.addEventListener('mouseleave', () => {
             state.hover = null;
             updateHoverChip(null);
-            softRefresh();
         });
 
         [
@@ -1329,7 +1234,7 @@
             document.getElementById(id).addEventListener('change', e => {
                 state[key] = e.target.checked;
                 saveSettings();
-                softRefresh();
+                updateGraph();
             });
         });
 
@@ -1351,13 +1256,12 @@
                 n.vx = undefined; n.vy = undefined;
                 n.fx = undefined; n.fy = undefined;
             });
-            buildGraphData(true);
+            updateGraph(true);
         });
 
         document.getElementById('btn-display').addEventListener('click', () => {
             state.replaying = false;
-            softRefresh();
-            applyForces(true);
+            updateGraph();
         });
 
         document.getElementById('search-in').addEventListener('change', e => {
@@ -1373,7 +1277,9 @@
         });
 
         loadSettings();
-        setTimeout(playReplay, 150);
+        setTimeout(() => {
+            if (typeof playReplay === 'function') playReplay();
+        }, 300);
     </script>
 </body>
 

@@ -308,7 +308,7 @@ impl CodeParser for GenericParser {
         let mut function_scopes: Vec<(usize, usize, String)> = Vec::new();
         let mut function_keys: HashMap<(String, usize), String> = HashMap::new();
 
-        let file_path_str = file_path.to_string_lossy().to_string();
+        let file_path_str = file_path.to_string_lossy().to_string().replace('\\', "/");
         let file_node_id = format!("FILE::{}", file_path_str);
 
         seen_nodes.insert(file_node_id.clone());

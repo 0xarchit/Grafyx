@@ -28,7 +28,7 @@ impl Linker {
 
     fn file_extensions_for_lookup() -> &'static [&'static str] {
         &[
-            "", ".js", ".jsx", ".ts", ".tsx", ".tx", ".py", ".go", ".rs", ".java", "/index.js", "/index.ts",
+            "", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".tx", ".py", ".go", ".rs", ".java", "/index.js", "/index.ts",
             "/index.tsx", "/index.jsx", "/mod.rs",
         ]
     }
@@ -102,10 +102,13 @@ impl Linker {
 
     fn resolve_import_target(
         from_file_path: &str,
+        from_lang: &str,
+        from_service: &str,
         spec: &str,
         path_to_file_id: &HashMap<String, String>,
-        stem_to_ids: &HashMap<String, Vec<String>>,
+        stem_to_ids: &HashMap<(String, String), Vec<String>>,
         file_id_to_path: &HashMap<String, String>,
+        nodes_by_id: &HashMap<String, Node>,
     ) -> Option<String> {
         if let Some(id) = path_to_file_id.get(&Self::normalize_path(spec)) {
             return Some(id.clone());
@@ -139,7 +142,13 @@ impl Linker {
         suffix_targets.sort();
         suffix_targets.dedup();
         if !suffix_targets.is_empty() {
-            return Self::choose_closest_id(from_file_path, &suffix_targets, file_id_to_path);
+            let filtered: Vec<String> = suffix_targets
+                .into_iter()
+                .filter(|id| nodes_by_id.get(id).map_or(false, |n| n.language == from_lang))
+                .collect();
+            if !filtered.is_empty() {
+                return Self::choose_closest_id(from_file_path, &filtered, file_id_to_path);
+            }
         }
 
         let stem = spec
@@ -149,7 +158,15 @@ impl Linker {
             .unwrap_or("")
             .to_string();
 
-        if let Some(matches) = stem_to_ids.get(&stem) {
+        if let Some(matches) = stem_to_ids.get(&(from_lang.to_string(), stem.clone())) {
+            let service_matches: Vec<String> = matches
+                .iter()
+                .filter(|id| nodes_by_id.get(*id).map_or(false, |n| n.service == from_service))
+                .cloned()
+                .collect();
+            if !service_matches.is_empty() {
+                return Self::choose_closest_id(from_file_path, &service_matches, file_id_to_path);
+            }
             return Self::choose_closest_id(from_file_path, matches, file_id_to_path);
         }
 
@@ -230,7 +247,7 @@ impl Linker {
 
         let mut path_to_file_id: HashMap<String, String> = HashMap::new();
         let mut file_id_to_path: HashMap<String, String> = HashMap::new();
-        let mut stem_to_ids: HashMap<String, Vec<String>> = HashMap::new();
+        let mut stem_to_ids: HashMap<(String, String), Vec<String>> = HashMap::new();
 
         for node in nodes_by_id.values() {
             if node.kind == NodeKind::File {
@@ -238,7 +255,10 @@ impl Linker {
                 path_to_file_id.insert(normalized.clone(), node.id.clone());
                 file_id_to_path.insert(node.id.clone(), normalized.clone());
                 if let Some(stem) = Path::new(&normalized).file_stem().and_then(|s| s.to_str()) {
-                    stem_to_ids.entry(stem.to_string()).or_default().push(node.id.clone());
+                    stem_to_ids
+                        .entry((node.language.clone(), stem.to_string()))
+                        .or_default()
+                        .push(node.id.clone());
                 }
             }
         }
@@ -262,8 +282,8 @@ impl Linker {
         }
 
         let mut function_ids_by_file: HashMap<String, Vec<(String, String)>> = HashMap::new();
-        let mut function_ids_by_service: HashMap<(String, String), Vec<String>> = HashMap::new();
-        let mut function_ids_by_name: HashMap<String, Vec<String>> = HashMap::new();
+        let mut function_ids_by_service: HashMap<(String, String, String), Vec<String>> = HashMap::new();
+        let mut function_ids_by_name: HashMap<(String, String), Vec<String>> = HashMap::new();
         let mut function_id_to_path: HashMap<String, String> = HashMap::new();
 
         for node in nodes_by_id.values() {
@@ -273,11 +293,11 @@ impl Linker {
                     .or_default()
                     .push((node.name.clone(), node.id.clone()));
                 function_ids_by_service
-                    .entry((node.service.clone(), node.name.clone()))
+                    .entry((node.service.clone(), node.language.clone(), node.name.clone()))
                     .or_default()
                     .push(node.id.clone());
                 function_ids_by_name
-                    .entry(node.name.clone())
+                    .entry((node.language.clone(), node.name.clone()))
                     .or_default()
                     .push(node.id.clone());
                 function_id_to_path.insert(node.id.clone(), node.file_path.clone());
@@ -305,13 +325,18 @@ impl Linker {
                     };
 
                     if !from_file_path.is_empty() {
+                        let from_lang = nodes_by_id.get(&edge.from_node_id).map(|n| n.language.as_str()).unwrap_or("");
+                        let from_service = nodes_by_id.get(&edge.from_node_id).map(|n| n.service.as_str()).unwrap_or("");
                         if let Some(target_file_id) =
                             Self::resolve_import_target(
                                 &from_file_path,
+                                from_lang,
+                                from_service,
                                 spec,
                                 &path_to_file_id,
                                 &stem_to_ids,
                                 &file_id_to_path,
+                                &nodes_by_id,
                             )
                         {
                             imported_file_ids_by_file_id
@@ -340,21 +365,23 @@ impl Linker {
             if edge.relation_type == RelationType::Calls {
                 if let Some(call_name) = edge.to_node_id.strip_prefix("CALL::") {
                     let from_node = nodes_by_id.get(&edge.from_node_id);
-                    let (from_file_path, from_service, from_file_id) = if let Some(node) = from_node {
+                    let (from_file_path, from_service, from_file_id, from_lang) = if let Some(node) = from_node {
                         if node.kind == NodeKind::File {
-                            (node.file_path.clone(), node.service.clone(), node.id.clone())
+                            (node.file_path.clone(), node.service.clone(), node.id.clone(), node.language.clone())
                         } else {
                             (
                                 node.file_path.clone(),
                                 node.service.clone(),
                                 format!("FILE::{}", node.file_path),
+                                node.language.clone(),
                             )
                         }
                     } else if let Some(path) = Self::path_from_file_id(&edge.from_node_id) {
                         let service = Self::service_for_path(&path, &services);
-                        (path.clone(), service, format!("FILE::{}", path))
+                        let lang = nodes_by_id.get(&edge.from_node_id).map(|n| n.language.clone()).unwrap_or_default();
+                        (path.clone(), service, format!("FILE::{}", path), lang)
                     } else {
-                        (String::new(), String::new(), String::new())
+                        (String::new(), String::new(), String::new(), String::new())
                     };
 
                     let mut resolved: Option<String> = None;
@@ -384,14 +411,14 @@ impl Linker {
 
                     if resolved.is_none() {
                         if let Some(candidates) =
-                            function_ids_by_service.get(&(from_service.clone(), call_name.to_string()))
+                            function_ids_by_service.get(&(from_service.clone(), from_lang.clone(), call_name.to_string()))
                         {
                             resolved = Self::choose_closest_id(&from_file_path, candidates, &function_id_to_path);
                         }
                     }
 
                     if resolved.is_none() {
-                        if let Some(candidates) = function_ids_by_name.get(call_name) {
+                        if let Some(candidates) = function_ids_by_name.get(&(from_lang.clone(), call_name.to_string())) {
                             resolved = Self::choose_closest_id(&from_file_path, candidates, &function_id_to_path);
                         }
                     }
@@ -510,7 +537,15 @@ impl Linker {
 
         let mut finalized_nodes = Vec::new();
         for (_, mut node) in nodes_by_id {
-            let keep = matches!(node.kind, NodeKind::Root | NodeKind::Service) || referenced.contains(&node.id);
+            let mut keep = matches!(node.kind, NodeKind::Root | NodeKind::Service) || referenced.contains(&node.id);
+            
+            if !keep && (node.kind == NodeKind::Function || node.kind == NodeKind::Class) {
+                let file_id = format!("FILE::{}", node.file_path);
+                if referenced.contains(&file_id) {
+                    keep = true;
+                }
+            }
+
             if keep {
                 node.weight = 0.0;
                 finalized_nodes.push(node);
@@ -676,7 +711,7 @@ mod tests {
             .edges
             .iter()
             .any(|e| e.from_node_id == file_id && e.to_node_id == "PKG::react" && e.relation_type == RelationType::Imports));
-        assert!(!graph.nodes.iter().any(|n| n.id == "FUNC::orphan"));
+        assert!(graph.nodes.iter().any(|n| n.id == "FUNC::orphan"));
     }
 
     #[test]
@@ -746,5 +781,176 @@ mod tests {
             .edges
             .iter()
             .any(|e| e.from_node_id == b_runner && e.to_node_id == b_helper && e.relation_type == RelationType::Calls));
+    }
+
+    #[test]
+    fn isolates_language_scopes_for_calls() {
+        let py_path = "/repo/app.py";
+        let rs_path = "/repo/main.rs";
+        let py_file = format!("FILE::{}", py_path);
+        let rs_file = format!("FILE::{}", rs_path);
+        let py_caller = format!("FUNC::{}::caller::1", py_path);
+        let py_callee = format!("FUNC::{}::run::1", py_path);
+        let rs_callee = format!("FUNC::{}::run::1", rs_path);
+
+        let mut graph = Graph {
+            nodes: vec![
+                Node {
+                    id: py_file.clone(),
+                    kind: NodeKind::File,
+                    name: "app.py".into(),
+                    language: "python".into(),
+                    file_path: py_path.into(),
+                    service: "SERVICE::/repo".into(),
+                    start_line: 0,
+                    end_line: 10,
+                    weight: 1.0,
+                },
+                Node {
+                    id: rs_file.clone(),
+                    kind: NodeKind::File,
+                    name: "main.rs".into(),
+                    language: "rust".into(),
+                    file_path: rs_path.into(),
+                    service: "SERVICE::/repo".into(),
+                    start_line: 0,
+                    end_line: 10,
+                    weight: 1.0,
+                },
+                Node {
+                    id: py_caller.clone(),
+                    kind: NodeKind::Function,
+                    name: "caller".into(),
+                    language: "python".into(),
+                    file_path: py_path.into(),
+                    service: "SERVICE::/repo".into(),
+                    start_line: 1,
+                    end_line: 2,
+                    weight: 1.0,
+                },
+                Node {
+                    id: py_callee.clone(),
+                    kind: NodeKind::Function,
+                    name: "run".into(),
+                    language: "python".into(),
+                    file_path: py_path.into(),
+                    service: "SERVICE::/repo".into(),
+                    start_line: 3,
+                    end_line: 4,
+                    weight: 1.0,
+                },
+                Node {
+                    id: rs_callee.clone(),
+                    kind: NodeKind::Function,
+                    name: "run".into(),
+                    language: "rust".into(),
+                    file_path: rs_path.into(),
+                    service: "SERVICE::/repo".into(),
+                    start_line: 1,
+                    end_line: 1,
+                    weight: 1.0,
+                },
+            ],
+            edges: vec![
+                Edge {
+                    from_node_id: py_file.clone(),
+                    to_node_id: py_caller.clone(),
+                    relation_type: RelationType::Defines,
+                    _w: 1.0,
+                },
+                Edge {
+                    from_node_id: py_file.clone(),
+                    to_node_id: py_callee.clone(),
+                    relation_type: RelationType::Defines,
+                    _w: 1.0,
+                },
+                Edge {
+                    from_node_id: rs_file.clone(),
+                    to_node_id: rs_callee.clone(),
+                    relation_type: RelationType::Defines,
+                    _w: 1.0,
+                },
+                Edge {
+                    from_node_id: py_caller.clone(),
+                    to_node_id: "CALL::run".into(),
+                    relation_type: RelationType::Calls,
+                    _w: 1.0,
+                },
+            ],
+        };
+
+        Linker::new(vec!["/repo".to_string()]).link(&mut graph);
+
+        assert!(graph.edges.iter().any(|e| {
+            e.from_node_id == py_caller && e.to_node_id == py_callee && e.relation_type == RelationType::Calls
+        }));
+        assert!(!graph.edges.iter().any(|e| {
+            e.from_node_id == py_caller && e.to_node_id == rs_callee
+        }));
+    }
+
+    #[test]
+    fn isolates_language_scopes_for_imports() {
+        let js_path = "/repo/config.js";
+        let go_path = "/repo/config.go";
+        let js_file = format!("FILE::{}", js_path);
+        let go_file = format!("FILE::{}", go_path);
+        let importer_path = "/repo/app.js";
+        let importer_file = format!("FILE::{}", importer_path);
+
+        let mut graph = Graph {
+            nodes: vec![
+                Node {
+                    id: js_file.clone(),
+                    kind: NodeKind::File,
+                    name: "config.js".into(),
+                    language: "javascript".into(),
+                    file_path: js_path.into(),
+                    service: "SERVICE::/repo".into(),
+                    start_line: 0,
+                    end_line: 10,
+                    weight: 1.0,
+                },
+                Node {
+                    id: go_file.clone(),
+                    kind: NodeKind::File,
+                    name: "config.go".into(),
+                    language: "go".into(),
+                    file_path: go_path.into(),
+                    service: "SERVICE::/repo".into(),
+                    start_line: 0,
+                    end_line: 10,
+                    weight: 1.0,
+                },
+                Node {
+                    id: importer_file.clone(),
+                    kind: NodeKind::File,
+                    name: "app.js".into(),
+                    language: "javascript".into(),
+                    file_path: importer_path.into(),
+                    service: "SERVICE::/repo".into(),
+                    start_line: 0,
+                    end_line: 10,
+                    weight: 1.0,
+                },
+            ],
+            edges: vec![
+                Edge {
+                    from_node_id: importer_file.clone(),
+                    to_node_id: "IMPORT::config".into(),
+                    relation_type: RelationType::Imports,
+                    _w: 1.0,
+                },
+            ],
+        };
+
+        Linker::new(vec!["/repo".to_string()]).link(&mut graph);
+
+        assert!(graph.edges.iter().any(|e| {
+            e.from_node_id == importer_file && e.to_node_id == js_file && e.relation_type == RelationType::Imports
+        }));
+        assert!(!graph.edges.iter().any(|e| {
+            e.from_node_id == importer_file && e.to_node_id == go_file
+        }));
     }
 }
