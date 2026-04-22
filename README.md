@@ -20,9 +20,16 @@ Visualize Your Codebase Like Never Before
 </div>
 
 [![Status](https://img.shields.io/badge/Status-Active%20Development-000000.svg?style=for-the-badge&logo=rocket&logoColor=white&labelColor=000000&color=000000)](https://github.com/0xarchit/grafyx)
-[![License](https://img.shields.io/badge/License-Apache%202.0-000000.svg?style=for-the-badge&logo=apache&logoColor=white&labelColor=000000&color=000000)](LICENSE)  
+[![Build Status](https://img.shields.io/github/actions/workflow/status/0xarchit/grafyx/release.yml?style=for-the-badge&label=Build%20Status&logo=github&logoColor=white&labelColor=000000&color=000000)](https://github.com/0xarchit/grafyx/actions/workflows/release.yml)  
+[![License](https://img.shields.io/badge/License-Apache%202.0-000000.svg?style=for-the-badge&logo=apache&logoColor=white&labelColor=000000&color=000000)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.94+-000000.svg?style=for-the-badge&logo=rust&logoColor=white&labelColor=000000&color=000000)](https://rust-lang.org)
-[![D3.js](https://img.shields.io/badge/D3.js-v7-000000.svg?style=for-the-badge&logo=d3dotjs&logoColor=white&labelColor=000000&color=000000)](https://d3js.org)
+[![D3.js](https://img.shields.io/badge/D3.js-v7-000000.svg?style=for-the-badge&logo=javascript&logoColor=white&labelColor=000000&color=000000)](https://d3js.org)  
+[![Stars](https://img.shields.io/github/stars/0xarchit/grafyx?style=for-the-badge&logo=github&logoColor=white&labelColor=000000&color=000000)](https://github.com/0xarchit/grafyx/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/0xarchit/grafyx/total?style=for-the-badge&logo=github&logoColor=white&labelColor=000000&color=000000)](https://github.com/0xarchit/grafyx/releases)
+[![Repo Size](https://img.shields.io/github/repo-size/0xarchit/grafyx?style=for-the-badge&logo=github&logoColor=white&labelColor=000000&color=000000)](https://github.com/0xarchit/grafyx)  
+[![Issues](https://img.shields.io/github/issues/0xarchit/grafyx?style=for-the-badge&logo=github&logoColor=white&labelColor=000000&color=000000)](https://github.com/0xarchit/grafyx/issues)
+[![Last Commit](https://img.shields.io/github/last-commit/0xarchit/grafyx?style=for-the-badge&logo=github&logoColor=white&labelColor=000000&color=000000)](https://github.com/0xarchit/grafyx)
+[![Website](https://img.shields.io/website?url=https%3A%2F%2Fgrafyx.0xarchit.is-a.dev&style=for-the-badge&logo=html5&logoColor=white&labelColor=000000&color=000000)](https://grafyx.0xarchit.is-a.dev)
 
 ---
 
