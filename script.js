@@ -1,411 +1,355 @@
 /**
- * Grafyx - Interactive Background
- * A lightweight node-graph visualization for the landing page.
+ * Grafyx - Production Scripts
+ * Implements Cinematic Reveal, Live Physics Playground, GitHub API, and Magnetic UI.
  */
 
-class GrafyxBackground {
-    constructor() {
-        this.canvas = document.getElementById('background-canvas');
-        if (!this.canvas) return;
-        this.ctx = this.canvas.getContext('2d');
-        this.nodes = [];
-        this.nodeCount = 80;
-        this.maxDistance = 200;
-        this.mouse = { x: null, y: null };
+document.addEventListener('DOMContentLoaded', () => {
+    fetchGitHubData();
+    initHeroAnimations();
+    initCLI();
+    initBackground();
+    initPlayground();
+    initMagneticButtons();
+    initSpotlight();
+    initScrollReveal();
+    initCustomCursor();
+    initViewportTilt();
+});
+
+async function fetchGitHubData() {
+    const repo = '0xarchit/grafyx';
+    const versionEl = document.getElementById('version-tag');
+    const starsEl = document.getElementById('gh-stars');
+
+    try {
+        // Fetch Stars
+        const repoRes = await fetch(`https://api.github.com/repos/${repo}`);
+        if (repoRes.ok) {
+            const data = await repoRes.json();
+            const stars = data.stargazers_count;
+            if (starsEl) starsEl.innerText = stars > 999 ? (stars / 1000).toFixed(1) + 'k' : stars;
+        }
+
+        // Fetch Latest Version
+        const releaseRes = await fetch(`https://api.github.com/repos/${repo}/releases/latest`);
+        if (releaseRes.ok) {
+            const data = await releaseRes.json();
+            if (versionEl) versionEl.innerText = `${data.tag_name} Experimental`;
+        } else {
+            if (versionEl) versionEl.innerText = 'v0.1.4 Experimental';
+        }
+    } catch (err) {
+        console.error('Failed to fetch GitHub data:', err);
+        if (versionEl) versionEl.innerText = 'v0.1.4 Experimental';
+    }
+}
+
+function initHeroAnimations() {
+    const titles = document.querySelectorAll('.hero-title, .hero-description, .cli-container, .hero-actions');
+    titles.forEach((el, i) => {
+        setTimeout(() => {
+            el.classList.add('reveal');
+        }, 100 * i);
+    });
+}
+
+function initCLI() {
+    const tabs = document.querySelectorAll('.tab-btn');
+    const display = document.getElementById('cli-display');
+    
+    const commands = {
+        'linux': 'curl -L https://github.com/0xarchit/grafyx/releases/latest/download/grafyx-linux-amd64-static -o grafyx && chmod +x grafyx && ./grafyx install && rm grafyx',
+        'macos-arm': 'curl -L https://github.com/0xarchit/grafyx/releases/latest/download/grafyx-macos-aarch64 -o grafyx && chmod +x grafyx && ./grafyx install && rm grafyx',
+        'macos-intel': 'curl -L https://github.com/0xarchit/grafyx/releases/latest/download/grafyx-macos-x86_64 -o grafyx && chmod +x grafyx && ./grafyx install && rm grafyx',
+        'windows': 'iwr https://github.com/0xarchit/grafyx/releases/latest/download/grafyx-windows-amd64.exe -OutFile grafyx.exe; .\\grafyx install; del grafyx.exe'
+    };
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            display.innerText = commands[tab.dataset.platform];
+        });
+    });
+
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('win')) {
+        tabs[3].click();
+    } else if (ua.includes('mac')) {
+        if (ua.includes('intel')) {
+            tabs[2].click();
+        } else {
+            tabs[1].click();
+        }
+    } else {
+        tabs[0].click();
+    }
+}
+
+function copyToClipboard() {
+    const text = document.getElementById('cli-display').innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const toast = document.getElementById('toast');
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2000);
         
-        this.init();
-        this.animate();
-        this.addEventListeners();
+        const icon = document.querySelector('.cli-copy i');
+        if (icon) {
+            icon.className = 'fa-solid fa-check';
+            setTimeout(() => {
+                icon.className = 'fa-regular fa-copy';
+            }, 2000);
+        }
+    });
+}
+
+function initBackground() {
+    const canvas = document.getElementById('background-canvas');
+    const ctx = canvas.getContext('2d');
+    let width, height;
+    let nodes = [];
+    const nodeCount = 50;
+    const maxDistance = 250;
+
+    function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
     }
 
-    init() {
-        this.resize();
-        this.nodes = [];
-        for (let i = 0; i < this.nodeCount; i++) {
-            this.nodes.push({
-                x: Math.random() * this.canvas.width,
-                y: Math.random() * this.canvas.height,
-                vx: (Math.random() - 0.5) * 0.5,
-                vy: (Math.random() - 0.5) * 0.5,
-                radius: Math.random() * 2 + 1
+    function initNodes() {
+        nodes = [];
+        for (let i = 0; i < nodeCount; i++) {
+            nodes.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                vx: (Math.random() - 0.5) * 0.3,
+                vy: (Math.random() - 0.5) * 0.3,
+                r: Math.random() * 2 + 1
             });
         }
     }
 
-    resize() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-    }
-
-    draw() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        for (let i = 0; i < this.nodes.length; i++) {
-            let n = this.nodes[i];
-            
-            // Move
+    function animate() {
+        ctx.clearRect(0, 0, width, height);
+        nodes.forEach((n, i) => {
             n.x += n.vx;
             n.y += n.vy;
-            
-            // Bounce
-            if (n.x < 0 || n.x > this.canvas.width) n.vx *= -1;
-            if (n.y < 0 || n.y > this.canvas.height) n.vy *= -1;
-            
-            // Draw Node
-            this.ctx.beginPath();
-            this.ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
-            this.ctx.fillStyle = 'rgba(100, 255, 180, 0.5)';
-            this.ctx.fill();
-            
-            // Connections
-            for (let j = i + 1; j < this.nodes.length; j++) {
-                let n2 = this.nodes[j];
+            if (n.x < 0 || n.x > width) n.vx *= -1;
+            if (n.y < 0 || n.y > height) n.vy *= -1;
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(100, 255, 180, 0.3)';
+            ctx.fill();
+
+            for (let j = i + 1; j < nodes.length; j++) {
+                const n2 = nodes[j];
                 const dx = n.x - n2.x;
                 const dy = n.y - n2.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
-                
-                if (dist < this.maxDistance) {
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(n.x, n.y);
-                    this.ctx.lineTo(n2.x, n2.y);
-                    const alpha = (1 - dist / this.maxDistance) * 0.2;
-                    this.ctx.strokeStyle = `rgba(100, 255, 180, ${alpha})`;
-                    this.ctx.stroke();
+                if (dist < maxDistance) {
+                    ctx.beginPath();
+                    ctx.moveTo(n.x, n.y);
+                    ctx.lineTo(n2.x, n2.y);
+                    ctx.strokeStyle = `rgba(100, 255, 180, ${(1 - dist/maxDistance) * 0.15})`;
+                    ctx.stroke();
                 }
             }
-        }
-    }
-
-    animate() {
-        this.draw();
-        requestAnimationFrame(() => this.animate());
-    }
-
-    addEventListeners() {
-        window.addEventListener('resize', () => this.resize());
-        window.addEventListener('mousemove', (e) => {
-            this.mouse.x = e.clientX;
-            this.mouse.y = e.clientY;
-
-            // Apply repulsion force to nodes
-            this.nodes.forEach(node => {
-                const dx = node.x - this.mouse.x;
-                const dy = node.y - this.mouse.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < 150) {
-                    if (dist === 0) return; // Skip if directly on node
-                    const force = (150 - dist) / 150;
-                    node.vx += dx / dist * force * 0.8;
-                    node.vy += dy / dist * force * 0.8;
-                }
-            });
         });
-        window.addEventListener('mouseleave', () => {
-            this.mouse.x = null;
-            this.mouse.y = null;
-        });
+        requestAnimationFrame(animate);
     }
+
+    window.addEventListener('resize', () => {
+        resize();
+        initNodes();
+    });
+    resize();
+    initNodes();
+    animate();
 }
 
+function initPlayground() {
+    const svg = d3.select("#playground-canvas");
+    const container = document.querySelector('.pg-preview');
+    let width = container.clientWidth;
+    let height = container.clientHeight;
 
-// Terminal Simulation Logic
-const terminalSteps = [
-    { text: "Establishing secure context...", delay: 800 },
-    { text: "[INIT] Initializing deep BFS scanner...", delay: 400 },
-    { text: "[SEC] Verifying Ed25519 signatures...", delay: 600 },
-    { text: "[SEC] Root of Trust confirmed.", delay: 300 },
-    { text: "PARSING: Found 142 distinct modules.", delay: 600 },
-    { text: "LINKING: Resolving cross-references...", delay: 1000 },
-    { text: "MAP: Topological sort complete.", delay: 400 },
-    { text: "[SUCCESS] Graph generated in 8ms.", delay: 800, class: "success" },
-    { text: "Streaming to http://localhost:8080", delay: 1000 }
-];
-
-async function runTerminalSim() {
-    const output = document.getElementById('terminal-output');
-    if (!output) return;
-
-    for (const step of terminalSteps) {
-        const line = document.createElement('div');
-        line.className = 'line animate-fade-in';
-        if (step.class) line.classList.add(step.class);
-        line.innerHTML = `<span class="time">[${new Date().toLocaleTimeString([], {hour12: false})}]</span> ${step.text}`;
-        output.appendChild(line);
-        
-        // Auto-scroll
-        const body = document.getElementById('terminal-body');
-        body.scrollTop = body.scrollHeight;
-        
-        await new Promise(r => setTimeout(r, step.delay));
+    const nodes = d3.range(30).map(i => ({ id: i }));
+    const links = d3.range(29).map(i => ({ source: i, target: i + 1 }));
+    for(let i=0; i<15; i++) {
+        links.push({ 
+            source: Math.floor(Math.random()*30), 
+            target: Math.floor(Math.random()*30) 
+        });
     }
+
+    const simulation = d3.forceSimulation(nodes)
+        .force("link", d3.forceLink(links).id(d => d.id).distance(50))
+        .force("charge", d3.forceManyBody().strength(-200))
+        .force("center", d3.forceCenter(width / 2, height / 2));
+
+    const link = svg.append("g")
+        .attr("stroke", "rgba(255,255,255,0.1)")
+        .selectAll("line")
+        .data(links)
+        .join("line");
+
+    const node = svg.append("g")
+        .selectAll("circle")
+        .data(nodes)
+        .join("circle")
+        .attr("r", 5)
+        .attr("fill", "#64ffb4")
+        .call(d3.drag()
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended));
+
+    simulation.on("tick", () => {
+        link.attr("x1", d => d.source.x).attr("y1", d => d.source.y).attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+        node.attr("cx", d => d.x).attr("cy", d => d.y);
+    });
+
+    function dragstarted(event) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+    }
+    function dragged(event) {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
+    }
+    function dragended(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = null;
+        event.subject.fy = null;
+    }
+
+    const repulsionInput = document.getElementById('repulsion');
+    const distanceInput = document.getElementById('distance');
+    const gravityInput = document.getElementById('gravity');
+
+    repulsionInput.addEventListener('input', (e) => {
+        simulation.force("charge").strength(-e.target.value);
+        document.getElementById('repulsion-val').innerText = e.target.value;
+        simulation.alpha(0.3).restart();
+    });
+    distanceInput.addEventListener('input', (e) => {
+        simulation.force("link").distance(e.target.value);
+        document.getElementById('distance-val').innerText = e.target.value;
+        simulation.alpha(0.3).restart();
+    });
+    gravityInput.addEventListener('input', (e) => {
+        simulation.force("center", d3.forceCenter(width / 2, height / 2));
+        document.getElementById('gravity-val').innerText = e.target.value;
+        simulation.alpha(0.3).restart();
+    });
 }
 
-// Magnetic Buttons
-function magneticButtons() {
-    document.querySelectorAll('.btn').forEach(btn => {
-        btn.addEventListener('mouseenter', () => {
-            btn.style.transition = 'background 0.3s, box-shadow 0.3s';
-        });
+function initMagneticButtons() {
+    const buttons = document.querySelectorAll('.magnetic');
+    buttons.forEach(btn => {
         btn.addEventListener('mousemove', (e) => {
             const rect = btn.getBoundingClientRect();
             const x = e.clientX - rect.left - rect.width / 2;
             const y = e.clientY - rect.top - rect.height / 2;
-            btn.style.transform = `translate(${x * 0.2}px, ${y * 0.2}px)`;
+            btn.style.transform = `translate(${x * 0.3}px, ${y * 0.3}px)`;
         });
         btn.addEventListener('mouseleave', () => {
-            btn.style.transition = '';
-            btn.style.transform = ``;
+            btn.style.transform = `translate(0, 0)`;
         });
     });
 }
 
-class GrafyxInstaller {
-    constructor() {
-        this.platformButtons = document.querySelectorAll('.platform-btn');
-        this.cliLines = document.querySelector('#cli-box');
-        this.repo = '0xarchit/grafyx';
-        this.releaseData = null;
-        this.platforms = {
-            linux: {
-                assetMatch: 'linux-amd64-static',
-                cmd: (url) => [
-                    `curl -L ${url} -o grafyx`,
-                    `chmod +x grafyx && ./grafyx install`
-                ]
-            },
-            macos: {
-                assetMatch: 'macos-aarch64', // Default to ARM
-                cmd: (url) => [
-                    `curl -L ${url} -o grafyx`,
-                    `chmod +x grafyx && ./grafyx install`
-                ]
-            },
-            windows: {
-                assetMatch: 'windows-amd64.exe',
-                cmd: (url) => [
-                    `iwr ${url} -OutFile grafyx.exe`,
-                    `.\\grafyx install`
-                ]
-            }
-        };
-
-        this.init();
-    }
-
-    async init() {
-        if (!this.platformButtons.length) return;
-        
-        await Promise.all([
-            this.fetchRelease(),
-            this.fetchRepoStats()
-        ]);
-        
-        this.detectOS();
-        this.addEventListeners();
-        this.updateUI();
-    }
-
-    async fetchRepoStats() {
-        const el = document.getElementById('gh-star-count');
-        try {
-            const response = await fetch(`https://api.github.com/repos/${this.repo}`);
-            if (!response.ok) throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
-            const data = await response.json();
-            const count = data.stargazers_count;
-            const formatted = count > 999 ? (count / 1000).toFixed(1) + 'k' : count;
-            if (el) el.innerText = formatted;
-        } catch (e) {
-            if (el) el.innerText = '0';
-        }
-    }
-
-    async fetchRelease() {
-        try {
-            const response = await fetch(`https://api.github.com/repos/${this.repo}/releases/latest`);
-            if (!response.ok) throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
-            this.releaseData = await response.json();
-        } catch (e) {
-            console.warn('GitHub API failed, using fallback URLs');
-            // Fallback to generic tag URLs if API fails
-            this.releaseData = {
-                assets: [
-                    { name: 'grafyx-linux-amd64-static', browser_download_url: `https://github.com/${this.repo}/releases/latest/download/grafyx-linux-amd64-static` },
-                    { name: 'grafyx-macos-aarch64', browser_download_url: `https://github.com/${this.repo}/releases/latest/download/grafyx-macos-aarch64` },
-                    { name: 'grafyx-macos-x86_64', browser_download_url: `https://github.com/${this.repo}/releases/latest/download/grafyx-macos-x86_64` },
-                    { name: 'grafyx-windows-amd64.exe', browser_download_url: `https://github.com/${this.repo}/releases/latest/download/grafyx-windows-amd64.exe` }
-                ]
-            };
-        }
-    }
-
-    detectOS() {
-        const platform = window.navigator.platform.toLowerCase();
-        let detected = 'linux';
-        
-        if (platform.includes('win')) {
-            detected = 'windows';
-        } else if (platform.includes('mac')) {
-            detected = 'macos';
-            this.platforms.macos.assetMatch = 'macos-x86_64'; // Default to x86
-            if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
-                navigator.userAgentData.getHighEntropyValues(['architecture']).then(values => {
-                    if (values.architecture === 'arm' || values.architecture === 'arm64') {
-                        this.platforms.macos.assetMatch = 'macos-aarch64';
-                    }
-                    this.updateUI();
-                });
-            }
-        }
-        
-        this.setActive(detected);
-    }
-
-    setActive(os) {
-        this.platformButtons.forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.os === os);
+function initSpotlight() {
+    const cards = document.querySelectorAll('.feature-card');
+    cards.forEach(card => {
+        card.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            card.style.setProperty('--x', `${((e.clientX - rect.left) / rect.width) * 100}%`);
+            card.style.setProperty('--y', `${((e.clientY - rect.top) / rect.height) * 100}%`);
         });
-        this.currentOS = os;
-        this.updateUI();
-    }
-
-    addEventListeners() {
-        this.platformButtons.forEach(btn => {
-            btn.addEventListener('click', () => this.setActive(btn.dataset.os));
-        });
-    }
-
-    updateUI() {
-        if (!this.releaseData || !this.cliLines) return;
-        
-        const config = this.platforms[this.currentOS];
-        const asset = this.releaseData.assets.find(a => 
-            a.name.endsWith(config.assetMatch) && !a.name.endsWith('.sig')
-        );
-        
-        if (!asset) {
-            this.cliLines.innerHTML = '<div class="cli-line" style="color: var(--accent); opacity: 0.8;">Download currently unavailable for this architecture. Please check releases manually.</div>';
-            return;
-        }
-
-        const commands = config.cmd(asset.browser_download_url);
-        
-        this.cliLines.innerHTML = commands.map((c, i) => 
-            `<div class="cli-line" ${i === commands.length - 1 ? 'style="margin-bottom: 0;"' : ''}>${c}</div>`
-        ).join('');
-    }
+    });
 }
 
-// Clipboard
-async function copyCLI() {
-    try {
-        const lines = document.querySelectorAll('.cli-line');
-        const text = Array.from(lines).map(l => l.innerText.trim()).join('\n');
-        await navigator.clipboard.writeText(text);
-        
-        const btn = document.querySelector('.copy-btn');
-        const icon = btn ? btn.querySelector('i') : null;
-        
-        if (btn && icon && window.lucide) {
-            icon.setAttribute('data-lucide', 'check');
-            window.lucide.createIcons();
-            
-            setTimeout(() => {
-                const stillIcon = btn.querySelector('i');
-                if (stillIcon) {
-                    stillIcon.setAttribute('data-lucide', 'copy');
-                    window.lucide.createIcons();
-                }
-            }, 2000);
-        }
-    } catch (err) {
-        console.error('Failed to copy: ', err);
-        alert('Failed to copy to clipboard. Please copy manually.');
-    }
+function initScrollReveal() {
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('reveal');
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.1, rootMargin: '0px 0px -100px 0px' });
+
+    document.querySelectorAll('.section-title, .feature-card, .playground, .marquee-container').forEach(el => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(40px)';
+        el.style.transition = 'all 1.2s cubic-bezier(0.16, 1, 0.3, 1)';
+        observer.observe(el);
+    });
 }
 
-// Custom Cursor Logic
-function customCursor() {
+function initCustomCursor() {
     const dot = document.querySelector('.cursor-dot');
     const outline = document.querySelector('.cursor-outline');
     if (!dot || !outline) return;
 
-    let animationFrameId = null;
-    let targetX = 0, targetY = 0;
-
-    const animateOutline = () => {
-        outline.style.left = `${targetX}px`;
-        outline.style.top = `${targetY}px`;
-        animationFrameId = null;
-    };
+    let mouseX = 0, mouseY = 0;
+    let outlineX = 0, outlineY = 0;
 
     window.addEventListener('mousemove', (e) => {
-        dot.style.left = `${e.clientX}px`;
-        dot.style.top = `${e.clientY}px`;
-        
-        targetX = e.clientX;
-        targetY = e.clientY;
-        
-        if (!animationFrameId) {
-            animationFrameId = requestAnimationFrame(animateOutline);
-        }
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        dot.style.transform = `translate(${mouseX}px, ${mouseY}px) translate(-50%, -50%)`;
     });
 
-    document.body.style.cursor = 'none';
+    const animateOutline = () => {
+        const easing = 0.15;
+        outlineX += (mouseX - outlineX) * easing;
+        outlineY += (mouseY - outlineY) * easing;
+        outline.style.transform = `translate(${outlineX}px, ${outlineY}px) translate(-50%, -50%)`;
+        requestAnimationFrame(animateOutline);
+    };
+    animateOutline();
 
-    document.querySelectorAll('a, button, .card').forEach(el => {
+    const hoverables = document.querySelectorAll('a, button, input, .feature-card, .magnetic');
+    hoverables.forEach(el => {
         el.addEventListener('mouseenter', () => {
-            outline.style.transform = 'translate(-50%, -50%) scale(2)';
+            outline.style.width = '60px';
+            outline.style.height = '60px';
+            outline.style.borderWidth = '1px';
             outline.style.background = 'rgba(100, 255, 180, 0.1)';
+            outline.style.opacity = '1';
         });
         el.addEventListener('mouseleave', () => {
-            outline.style.transform = 'translate(-50%, -50%) scale(1)';
-            outline.style.background = 'var(--accent-glow)';
+            outline.style.width = '32px';
+            outline.style.height = '32px';
+            outline.style.borderWidth = '1.5px';
+            outline.style.background = 'transparent';
+            outline.style.opacity = '0.4';
         });
     });
 }
+function initViewportTilt() {
+    const window3d = document.querySelector('.viewport-3d-window');
+    const container = document.querySelector('.viewport-3d-container');
+    if (!window3d || !container) return;
 
-// Initialize on Load
-document.addEventListener('DOMContentLoaded', () => {
-    new GrafyxBackground();
-    new GrafyxInstaller();
-    magneticButtons();
-    customCursor();
-    
-    // Initialize Lucide Icons
-    if (window.lucide) {
-        window.lucide.createIcons();
-    }
-    
-
-    // Run terminal sim when visible
-    const termObserver = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting) {
-            runTerminalSim();
-            termObserver.disconnect();
-        }
-    }, { threshold: 0.5 });
-    
-    const term = document.querySelector('.terminal-sim');
-    if (term) termObserver.observe(term);
-
-    // Scroll reveals
-    const observerOptions = {
-        threshold: 0.1
-    };
-
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.style.opacity = '1';
-                entry.target.style.transform = 'translateY(0)';
-            }
-        });
-    }, observerOptions);
-
-    document.querySelectorAll('.animate-on-scroll').forEach(el => {
-        el.style.opacity = '0';
-        el.style.transform = 'translateY(30px)';
-        el.style.transition = 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1)';
-        observer.observe(el);
+    container.addEventListener('mousemove', (e) => {
+        const rect = container.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        const xPct = (x / rect.width) - 0.5;
+        const yPct = (y / rect.height) - 0.5;
+        
+        const rotateX = 10 - (yPct * 20); // Tilt based on base 10deg
+        const rotateY = -5 + (xPct * 20); // Tilt based on base -5deg
+        
+        window3d.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) rotateZ(2deg) scale(1.02)`;
     });
-});
+
+    container.addEventListener('mouseleave', () => {
+        window3d.style.transform = `rotateX(10deg) rotateY(-5deg) rotateZ(2deg) scale(1)`;
+    });
+}

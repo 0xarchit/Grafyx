@@ -4,227 +4,325 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grafyx | The Living Knowledge Graph for Modern Codebases</title>
+    <title>Grafyx | Architectural Intelligence Engine</title>
     <meta name="description"
-        content="A high-performance codebase visualization engine. Map dependencies, explore architectures, and understand complex interactions with real-time physics.">
+        content="A premium codebase visualization engine for modern engineering teams. Map dependencies with sub-millisecond precision.">
 
-    <!-- Open Graph -->
-    <meta property="og:title" content="Grafyx | The Living Knowledge Graph">
-    <meta property="og:description"
-        content="Visualize your codebase like never before. High-performance scanning with Rust, fluid visualization with D3.js.">
-    <meta property="og:type" content="website">
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="assets/Grafyx-Logo.svg">
 
     <!-- CSS -->
     <link rel="stylesheet" href="style.css">
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- D3.js -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 
 <body>
 
+    <div class="cursor-dot"></div>
+    <div class="cursor-outline"></div>
+
     <canvas id="background-canvas"></canvas>
 
-    <main>
-        <!-- Hero Section -->
-        <section class="hero container">
-            <div class="badge-row">
-                <span class="security-badge">
-                    <i data-lucide="flask-conical"></i>
-                    BETA PHASE 0.1
-                </span>
-                <span class="security-badge">
-                    <i data-lucide="shield-check"></i>
-                    ED25519 VERIFIED
-                </span>
+    <nav>
+        <div class="container nav-content">
+            <a href="#" class="logo">
+                <img src="assets/Grafyx-Logo.svg" alt="Grafyx Logo">
+                <span>Grafyx</span>
+            </a>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#docs">Documentation</a>
+                <a href="#playground">Playground</a>
+                <a href="https://github.com/0xarchit/grafyx" class="text-bold">GitHub</a>
             </div>
-            <h1 class="hero-title" id="hero-title">Visualize Your Codebase <br>Ecosystem.</h1>
+        </div>
+    </nav>
 
+    <main>
+        <!-- Hero -->
+        <section class="hero container">
+            <div class="text-uppercase text-dim" style="margin-bottom: 1.5rem; letter-spacing: 0.4em;" id="version-tag">
+                Loading...</div>
+            <h1 class="hero-title text-thin">Visualize Your <br>Code Ecosystem.</h1>
             <p class="hero-description">
                 Map complex dependency chains and project architectures with sub-millisecond precision.
-                Grafyx transforms static directories into a living, breathing knowledge graph.
+                Grafyx transforms static directories into living knowledge graphs.
             </p>
 
-            <div class="hero-actions">
-                <a href="https://github.com/0xarchit/grafyx" class="btn">
-                    <i data-lucide="github"></i>
-                    View GitHub
-                    <span id="gh-star-count" class="star-badge">...</span>
-                </a>
-                <a href="#features" class="btn btn-outline" style="animation-delay: 0.9s;">
-                    Explore Features
-                </a>
-            </div>
-
-            <div class="platform-selector animate-on-scroll">
-                <button class="platform-btn active" data-os="linux">linux</button>
-                <button class="platform-btn" data-os="macos">macos</button>
-                <button class="platform-btn" data-os="windows">windows</button>
-            </div>
-
-            <div class="cli-wrapper animate-on-scroll">
-                <div class="cli-box" id="cli-box">
-                    <div class="cli-line">curl -L https://git.io/grafyx -o grafyx</div>
-                    <div class="cli-line" style="margin-bottom: 0;">chmod +x grafyx && ./grafyx install</div>
+            <div class="cli-container reveal" style="animation-delay: 0.8s;">
+                <div class="platform-tabs">
+                    <button class="tab-btn active" data-platform="linux">
+                        <i class="fa-brands fa-linux"></i>
+                        <span>Linux</span>
+                    </button>
+                    <button class="tab-btn" data-platform="macos-arm">
+                        <i class="fa-brands fa-apple"></i>
+                        <span>macOS <small>Silicon</small></span>
+                        <b class="platform-badge">Silicon</b>
+                    </button>
+                    <button class="tab-btn" data-platform="macos-intel">
+                        <i class="fa-brands fa-apple"></i>
+                        <span>macOS <small>Intel</small></span>
+                        <b class="platform-badge">Intel</b>
+                    </button>
+                    <button class="tab-btn" data-platform="windows">
+                        <i class="fa-brands fa-windows"></i>
+                        <span>Windows</span>
+                    </button>
                 </div>
-                <button class="copy-btn" onclick="copyCLI()">
-                    <i data-lucide="copy"></i>
-                </button>
-                <div class="ornament ornament-tl">GFX_CLI_v01</div>
-                <div class="ornament ornament-br">READY</div>
+                <div class="cli-box">
+                    <code class="cli-text"
+                        id="cli-display">curl -L https://github.com/0xarchit/grafyx/releases/latest/download/grafyx-linux-amd64-static -o grafyx && chmod +x grafyx && ./grafyx install && rm grafyx</code>
+                    <button class="cli-copy" onclick="copyToClipboard()" title="Copy to clipboard">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="hero-actions reveal" style="animation-delay: 1s; margin-top: 3rem; display: flex; gap: 1rem;">
+                <a href="https://github.com/0xarchit/grafyx" class="btn magnetic">
+                    <i class="fa-brands fa-github"></i>
+                    Star on GitHub <span id="gh-stars" style="margin-left: 8px; opacity: 0.5;">...</span>
+                </a>
+                <a href="#features" class="btn btn-secondary magnetic">
+                    Explore Engine
+                </a>
             </div>
         </section>
 
-        <div class="status-marquee">
+        <!-- Tech Marquee -->
+        <div class="marquee-container">
             <div class="marquee-content">
-                SCANNING: ./src/main.rs ... OK | PARSING: nodes: 1,429 | GFX_ENGINE_STATUS: NOMINAL | LATENCY: 0.8ms |
-                MEMORY: 12.4MB | SCAN_MODE: DEEP_STRUCTURAL | SYSTEM_TIME: 2026-04-19 18:58:00 | SCANNING:
-                ./src/parser/generic.rs ... OK | PARSING: nodes: 2,104 |
-                SCANNING: ./src/main.rs ... OK | PARSING: nodes: 1,429 | GFX_ENGINE_STATUS: NOMINAL | LATENCY: 0.8ms |
-                MEMORY: 12.4MB | SCAN_MODE: DEEP_STRUCTURAL | SYSTEM_TIME: 2026-04-19 18:58:00 | SCANNING:
-                ./src/parser/generic.rs ... OK | PARSING: nodes: 2,104 |
+                <div class="marquee-item"><i class="fa-solid fa-microchip"></i> Rust Performance</div>
+                <div class="marquee-item"><i class="fa-solid fa-diagram-project"></i> D3 Visualization</div>
+                <div class="marquee-item"><i class="fa-solid fa-terminal"></i> Static Binaries</div>
+                <div class="marquee-item"><i class="fa-solid fa-shield-halved"></i> Ed25519 Verified</div>
+                <div class="marquee-item"><i class="fa-solid fa-database"></i> SQLite Storage</div>
+                <div class="marquee-item"><i class="fa-solid fa-box-open"></i> MUSL Optimized</div>
+                <!-- Duplicate for seamless scroll -->
+                <div class="marquee-item"><i class="fa-solid fa-microchip"></i> Rust Performance</div>
+                <div class="marquee-item"><i class="fa-solid fa-diagram-project"></i> D3 Visualization</div>
+                <div class="marquee-item"><i class="fa-solid fa-terminal"></i> Static Binaries</div>
+                <div class="marquee-item"><i class="fa-solid fa-shield-halved"></i> Ed25519 Verified</div>
+                <div class="marquee-item"><i class="fa-solid fa-database"></i> SQLite Storage</div>
+                <div class="marquee-item"><i class="fa-solid fa-box-open"></i> MUSL Optimized</div>
             </div>
         </div>
 
-        <!-- Stats Section -->
-        <section class="container section-padding">
-            <div class="ornament ornament-tl">METRICS_01</div>
-            <div class="stats glass animate-on-scroll" style="padding: 3rem;">
-                <div class="stat-item">
-                    <span class="stat-value">1.94+</span>
-                    <span class="stat-label">Rust Powered</span>
+        <!-- Features -->
+        <section id="features" class="section container">
+            <h2 class="section-title text-thin">Architectural Excellence</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="spotlight"></div>
+                    <i class="fa-solid fa-bolt" style="margin-bottom: 1.5rem; color: var(--fg); font-size: 1.5rem;"></i>
+                    <h3 class="text-medium">Recursive Scanning</h3>
+                    <p>Sub-millisecond traversal of monorepos and microservices. Built-in awareness for .gitignore and
+                        structural boundaries.</p>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-value">&lt;10ms</span>
-                    <span class="stat-label">Parsing Latency</span>
+                <div class="feature-card">
+                    <div class="spotlight"></div>
+                    <i class="fa-solid fa-chart-line"
+                        style="margin-bottom: 1.5rem; color: var(--fg); font-size: 1.5rem;"></i>
+                    <h3 class="text-medium">Live Physics Engine</h3>
+                    <p>Fluid, liquid-like node simulations. Adjust repulsion and gravity in real-time without
+                        re-rendering the entire scene.</p>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-value">60fps</span>
-                    <span class="stat-label">Fluid Physics</span>
+                <div class="feature-card">
+                    <div class="spotlight"></div>
+                    <i class="fa-solid fa-layer-group"
+                        style="margin-bottom: 1.5rem; color: var(--fg); font-size: 1.5rem;"></i>
+                    <h3 class="text-medium">Hybrid Data Output</h3>
+                    <p>Persist discoveries with performance-optimized SQLite or human-readable JSON. Ready for CI/CD
+                        pipelines.</p>
                 </div>
-            </div>
-        </section>
-
-        <div class="scan-line"></div>
-        <div class="scan-overlay"></div>
-
-        <!-- How It Works -->
-        <section id="workflow" class="container section-padding">
-            <div class="ornament ornament-tl">PROCESS_MAP</div>
-            <div style="margin-bottom: 4rem;">
-                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">From Directory to Discovery</h2>
-                <p style="color: var(--text-muted); max-width: 600px;">The Grafyx pipeline translates raw source code
-                    into high-fidelity architectural models.</p>
-            </div>
-
-            <div class="workflow-grid">
-                <div class="workflow-step glass animate-on-scroll">
-                    <span class="step-num">01</span>
-                    <h4>Static Analysis</h4>
-                    <p>Concurrent scanner traverses the file tree using ignored-file awareness and language detection.
-                    </p>
+                <div class="feature-card">
+                    <div class="spotlight"></div>
+                    <i class="fa-solid fa-desktop"
+                        style="margin-bottom: 1.5rem; color: var(--fg); font-size: 1.5rem;"></i>
+                    <h3 class="text-medium">Native Targets</h3>
+                    <p>Native binaries for Apple Silicon and x86_64. No dependencies, no runtimes, just pure
+                        performance.</p>
                 </div>
-                <div class="workflow-step glass animate-on-scroll" style="animation-delay: 0.2s;">
-                    <span class="step-num">02</span>
-                    <h4>Dependency Extraction</h4>
-                    <p>Rust-based parsers extract import/export chains and interface relationships into a persistent IR.
-                    </p>
+                <div class="feature-card">
+                    <div class="spotlight"></div>
+                    <i class="fa-solid fa-code-branch"
+                        style="margin-bottom: 1.5rem; color: var(--fg); font-size: 1.5rem;"></i>
+                    <h3 class="text-medium">Deterministic Layouts</h3>
+                    <p>Graph structures remain consistent across sessions using stable seeding and spatial hashing
+                        algorithms.</p>
                 </div>
-                <div class="workflow-step glass animate-on-scroll" style="animation-delay: 0.4s;">
-                    <span class="step-num">03</span>
-                    <h4>Graph Projection</h4>
-                    <p>D3 physics simulation renders complex relationships into a navigable, real-time knowledge graph.
-                    </p>
-                </div>
-            </div>
-        </section>
-
-        <div class="scan-line"></div>
-
-        <!-- Features Section -->
-        <section id="features" class="container section-padding">
-            <div style="text-align: center; margin-bottom: 4rem;" class="animate-on-scroll">
-                <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Architectural Intelligence</h2>
-                <p style="color: var(--text-muted); max-width: 600px; margin: 0 auto;">
-                    Built for developers who need to understand deep technical relationships without digging through
-                    thousands of lines of code.
-                </p>
-            </div>
-
-            <div class="grid">
-                <!-- Card 1 -->
-                <div class="card glass animate-on-scroll">
-                    <div class="card-icon"><i data-lucide="zap"></i></div>
-                    <h3>Hot Physics</h3>
-                    <p>Real-time adjustable simulation forces. Drag nodes and update layout parameters instantly with
-                        zero re-rendering lag.</p>
-                </div>
-                <!-- Card 2 -->
-                <div class="card glass animate-on-scroll">
-                    <div class="card-icon"><i data-lucide="shield"></i></div>
-                    <h3>Universal Binary</h3>
-                    <p>Static Linux binaries (MUSL) and Native Apple Silicon support. Run Grafyx on Arch, Ubuntu, or M3
-                        Mac without dependencies.</p>
-                </div>
-                <!-- Card 3 -->
-                <div class="card glass animate-on-scroll">
-                    <div class="card-icon"><i data-lucide="database"></i></div>
-                    <h3>Hybrid Export</h3>
-                    <p>Persist your discoveries across sessions with performance-optimized SQLite and human-readable
-                        JSON exports.</p>
-                </div>
-                <!-- Card 4 -->
-                <div class="card glass animate-on-scroll">
-                    <div class="card-icon"><i data-lucide="layers"></i></div>
-                    <h3>Multi-dimensional</h3>
-                    <p>Visualize structural hierarchies alongside service interactions. Highlighting connection types
-                        with high-visibility palettes.</p>
-                </div>
-                <!-- Card 5 -->
-                <div class="card glass animate-on-scroll">
-                    <div class="card-icon"><i data-lucide="refresh-cw"></i></div>
-                    <h3>Live Lifecycle</h3>
-                    <p>Built-in `install` and `upgrade` commands. Background update checks ensure you're always running
-                        the latest engine.</p>
-                </div>
-                <!-- Card 6 -->
-                <div class="card glass animate-on-scroll">
-                    <div class="card-icon"><i data-lucide="maximize"></i></div>
-                    <h3>Infinity Scaling</h3>
-                    <p>From microservices to monorepos, Grafyx handles complexity with graceful degradation and LOD
-                        rendering.</p>
+                <div class="feature-card">
+                    <div class="spotlight"></div>
+                    <i class="fa-solid fa-eye" style="margin-bottom: 1.5rem; color: var(--fg); font-size: 1.5rem;"></i>
+                    <h3 class="text-medium">Open Intelligence</h3>
+                    <p>Full transparency with Apache 2.0. Audit the engine, contribute parsers, or build custom
+                        visualization layers.</p>
                 </div>
             </div>
         </section>
 
+        <!-- Engine Output Preview -->
+        <section class="section container">
+            <h2 class="section-title text-thin" style="margin-bottom: 3rem;">Engine Output Preview</h2>
+            <div class="viewport-3d-container">
+                <div class="viewport-3d-window">
+                    <div class="window-header">
+                        <div class="window-controls">
+                            <span></span><span></span><span></span>
+                        </div>
+                        <div class="window-title">grafyx --dirs . --output ./grafyx</div>
+                    </div>
+                    <div class="window-body">
+                        <img src="assets/screenshot.png" alt="Grafyx Visual Output">
+                    </div>
+                </div>
+                <div class="viewport-3d-shadow"></div>
+            </div>
+        </section>
 
-        <!-- CTA / CLI Section -->
-        <section class="container section-padding">
-            <div class="ornament ornament-tl">DEPLOY_READY</div>
-            <div class="glass animate-on-scroll" style="padding: 4rem; text-align: center;">
-                <h2 style="font-size: 2.5rem; margin-bottom: 1.5rem;">The Future of Code is Visual.</h2>
-                <p style="color: var(--text-muted); margin-bottom: 3rem;">Join the open-source movement to map every
-                    codebase on Earth.</p>
+        <!-- Command Reference (Documentation) -->
+        <section id="docs" class="section container">
+            <h2 class="section-title text-thin">Command Reference</h2>
+            <div class="docs-grid">
+                <!-- Scan -->
+                <div class="docs-card">
+                    <div class="docs-header">
+                        <code class="docs-cmd">scan</code>
+                        <span class="docs-desc">Perform a structural analysis of your codebase.</span>
+                    </div>
+                    <div class="docs-body">
+                        <div class="docs-option">
+                            <code class="opt-name">--dirs</code>
+                            <span class="opt-desc">Directories to scan (supports multiple paths).</span>
+                        </div>
+                        <div class="docs-option">
+                            <code class="opt-name">--output</code>
+                            <span class="opt-desc">Folder to save the resulting graph and HTML.</span>
+                        </div>
+                        <div class="docs-option">
+                            <code class="opt-name">--ignore</code>
+                            <span class="opt-desc">Glob patterns to exclude (e.g., vendor, tests).</span>
+                        </div>
+                        <div class="docs-option">
+                            <code class="opt-name">--format</code>
+                            <span class="opt-desc">Output type: <small>json | sqlite | both</small></span>
+                        </div>
+                    </div>
+                </div>
 
-                <a href="https://github.com/0xarchit/grafyx" class="btn"
-                    style="padding: 1.2rem 3rem; font-size: 1.1rem;">
-                    <i data-lucide="github"></i>
+                <!-- Utilities -->
+                <div class="docs-card">
+                    <div class="docs-header">
+                        <code class="docs-cmd">install</code>
+                        <span class="docs-desc">Configure system PATH for global usage.</span>
+                    </div>
+                    <div class="docs-body">
+                        <div class="docs-option">
+                            <code class="opt-name">grafyx i</code>
+                            <span class="opt-desc">Alias for immediate installation.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="docs-card">
+                    <div class="docs-header">
+                        <code class="docs-cmd">upgrade</code>
+                        <span class="docs-desc">Self-update to the latest verified binary.</span>
+                    </div>
+                    <div class="docs-body">
+                        <div class="docs-option">
+                            <code class="opt-name">--force</code>
+                            <span class="opt-desc">Overwrite existing binary if signature matches.</span>
+                        </div>
+                        <div class="docs-option">
+                            <code class="opt-name">grafyx u</code>
+                            <span class="opt-desc">Alias for quick upgrade.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="docs-card">
+                    <div class="docs-header">
+                        <code class="docs-cmd">uninstall</code>
+                        <span class="docs-desc">Remove binaries and clean PATH references.</span>
+                    </div>
+                    <div class="docs-body">
+                        <div class="docs-option">
+                            <code class="opt-name">grafyx un</code>
+                            <span class="opt-desc">Alias for cleanup.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Playground -->
+        <section id="playground" class="section container">
+            <div class="playground">
+                <div class="pg-content">
+                    <h2 class="text-thin" style="font-size: 3rem; margin-bottom: 1.5rem;">The Simulation Playground</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 3rem;">Touch the engine. Adjust the physics
+                        parameters and watch the dependency map react with our high-fidelity D3 simulation.</p>
+
+                    <div class="pg-controls">
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>Repulsion</span>
+                                <span id="repulsion-val">200</span>
+                            </div>
+                            <input type="range" id="repulsion" min="50" max="1000" value="200">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>Link Distance</span>
+                                <span id="distance-val">50</span>
+                            </div>
+                            <input type="range" id="distance" min="10" max="300" value="50">
+                        </div>
+                        <div class="control-group">
+                            <div class="control-label">
+                                <span>Gravity</span>
+                                <span id="gravity-val">0.1</span>
+                            </div>
+                            <input type="range" id="gravity" min="0.01" max="1" step="0.01" value="0.1">
+                        </div>
+                    </div>
+                </div>
+                <div class="pg-preview">
+                    <svg id="playground-canvas"></svg>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA -->
+        <section class="section container" style="text-align: center;">
+            <div
+                style="background: var(--surface); border: 1px solid var(--border); padding: 6rem; border-radius: 40px;">
+                <h2 class="text-thin" style="font-size: 3.5rem; margin-bottom: 2rem;">Ready to Map Your Code?</h2>
+                <a href="https://github.com/0xarchit/grafyx" class="btn magnetic"
+                    style="padding: 1rem 3rem; font-size: 1.1rem;">
                     Get Started on GitHub
                 </a>
             </div>
         </section>
     </main>
 
-    <!-- Custom Cursor -->
-    <div class="cursor-dot"></div>
-    <div class="cursor-outline"></div>
-
     <footer>
         <div class="container">
-            <p>Originally created by <a href="https://github.com/0xarchit">0xArchit</a></p>
-            <p style="margin-top: 1rem; opacity: 0.5;">Licensed under Apache 2.0. &copy; 2026 Grafyx.</p>
+            <p class="text-uppercase">Created by 0xArchit</p>
+            <p style="margin-top: 1rem; opacity: 0.4; font-size: 0.75rem;">Licensed under Apache 2.0. &copy; 2026 Grafyx
+            </p>
         </div>
     </footer>
 
+    <div id="toast" class="toast">Copied to clipboard</div>
+
     <!-- Scripts -->
-    <script src="https://unpkg.com/lucide@0.473.0"></script>
     <script src="script.js"></script>
 </body>
 
