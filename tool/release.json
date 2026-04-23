@@ -35,5 +35,12 @@
       "Refactored frontend to use standard ForceGraph API for better compatibility",
       "Optimized rendering lifecycle for smoother initial visualization load"
     ]
+  },
+  "0.1.4": {
+    "Note": "[Beta release] may be unstable and has bugs",
+    "Description": "v0.1.4 release minor changes for non windows installation",
+    "Features": [
+      "Fix installation on non-windows"
+    ]
   }
 }

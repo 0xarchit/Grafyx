@@ -105,15 +105,27 @@ fn handle_install() -> Result<()> {
         for shell in shells {
             let shell_path = home_dir.join(shell);
             if shell_path.exists() {
-                backup_file(&shell_path)?;
+                if let Err(e) = backup_file(&shell_path) {
+                    tracing::warn!("Failed to backup {}: {}", shell_path.display(), e);
+                    continue;
+                }
                 if let Ok(content) = fs::read_to_string(&shell_path) {
                     if !content.contains(marker) {
                         use std::io::Write;
-                        let mut file = fs::OpenOptions::new()
+                        let file_result = fs::OpenOptions::new()
                             .append(true)
-                            .open(&shell_path)
-                            .with_context(|| format!("Failed to open shell config for writing: {:?}", shell_path))?;
-                        writeln!(file, "{}", path_line).with_context(|| format!("Failed to append path to {}", shell_path.display()))?;
+                            .open(&shell_path);
+                        
+                        match file_result {
+                            Ok(mut file) => {
+                                if let Err(e) = writeln!(file, "{}", path_line) {
+                                    tracing::warn!("Failed to append path to {}: {}", shell_path.display(), e);
+                                }
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to open shell config {} for writing: {}", shell_path.display(), e);
+                            }
+                        }
                     }
                 }
             }
@@ -130,8 +142,6 @@ fn handle_uninstall() -> Result<()> {
     {
         let install_dir = home_dir.join("AppData").join("Roaming").join("grafyx");
         let bin_dir = install_dir.join("bin");
-        
-        // Check if we are running from the installation directory
         let current_exe = std::env::current_exe().ok();
         let is_running_from_install = current_exe.as_ref().map_or(false, |p| p.starts_with(&bin_dir));
 
@@ -154,8 +164,7 @@ fn handle_uninstall() -> Result<()> {
                 println!("{} Running from installation directory. Spawning cleanup script...", "INFO".yellow().bold());
                 
                 let target_dir = install_dir.to_string_lossy();
-                // Windows: We must use Stdio::null() to avoid shell hangs, and use start /B to detach.
-                // We use a slightly longer delay (2s) to ensure the current process has fully exited.
+
                 let script = format!(
                     "timeout /t 2 /nobreak > NUL && if exist \"{0}\" rd /s /q \"{0}\"",
                     target_dir
@@ -380,7 +389,6 @@ fn discover_services(roots: &[String]) -> Vec<String> {
         let root_path = Path::new(root);
         if !root_path.exists() { continue; }
 
-        // Check root itself
         for marker in &markers {
             if root_path.join(marker).exists() {
                 services.insert(root_path.to_string_lossy().to_string());
@@ -388,7 +396,6 @@ fn discover_services(roots: &[String]) -> Vec<String> {
             }
         }
 
-        // Look deeper for common monorepo patterns (one level down)
         if let Ok(entries) = fs::read_dir(root_path) {
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -398,7 +405,6 @@ fn discover_services(roots: &[String]) -> Vec<String> {
                         continue;
                     }
 
-                    // Check if this dir or its immediate children are services
                     for marker in &markers {
                         if path.join(marker).exists() {
                             services.insert(path.to_string_lossy().to_string());
@@ -406,7 +412,6 @@ fn discover_services(roots: &[String]) -> Vec<String> {
                         }
                     }
 
-                    // Check one more level if it's a known container like 'packages' or 'apps'
                     if name == "packages" || name == "apps" {
                         if let Ok(sub_entries) = fs::read_dir(&path) {
                             for sub_entry in sub_entries.flatten() {
