@@ -15,6 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initCustomCursor();
     initViewportTilt();
     initMagneticTitle();
+    initScrollProgress();
+    initAtmosphericParticles();
+    initScramble();
 });
 
 async function fetchGitHubData() {
@@ -356,19 +359,165 @@ function initViewportTilt() {
 }
 
 function initMagneticTitle() {
-    const titles = document.querySelectorAll('.hover-text');
+    const elements = document.querySelectorAll('.hover-text, .nav-links a');
     
-    titles.forEach(title => {
-        title.addEventListener('mousemove', (e) => {
-            const rect = title.getBoundingClientRect();
+    elements.forEach(el => {
+        el.addEventListener('mousemove', (e) => {
+            const rect = el.getBoundingClientRect();
             const x = e.clientX - rect.left - rect.width / 2;
             const y = e.clientY - rect.top - rect.height / 2;
             
-            title.style.transform = `translate(${x * 0.3}px, ${y * 0.3}px) skewX(${x * 0.1}deg)`;
+            const strength = el.classList.contains('hover-text') ? 0.3 : 0.15;
+            el.style.transform = `translate(${x * strength}px, ${y * strength}px) skewX(${x * 0.05}deg)`;
         });
         
-        title.addEventListener('mouseleave', () => {
-            title.style.transform = `translate(0, 0) skewX(0)`;
+        el.addEventListener('mouseleave', () => {
+            el.style.transform = `translate(0, 0) skewX(0)`;
         });
+    });
+}
+
+function initScrollProgress() {
+    const progress = document.getElementById('scroll-progress');
+    window.addEventListener('scroll', () => {
+        const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+        const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+        const scrolled = (winScroll / height) * 100;
+        progress.style.width = scrolled + "%";
+    });
+}
+
+function initAtmosphericParticles() {
+    const canvas = document.getElementById('particles-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let particles = [];
+    const count = 80;
+    
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    
+    window.addEventListener('resize', resize);
+    resize();
+    
+    class Particle {
+        constructor() {
+            this.reset();
+        }
+        
+        reset() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.size = Math.random() * 2 + 1;
+            this.vx = (Math.random() - 0.5) * 0.15;
+            this.vy = (Math.random() - 0.5) * 0.15;
+            this.alpha = Math.random() * 0.5 + 0.2;
+        }
+        
+        update(mx, my) {
+            this.x += this.vx;
+            this.y += this.vy;
+            
+            // Parallax shift based on mouse
+            const dx = (mx - canvas.width/2) * 0.015;
+            const dy = (my - canvas.height/2) * 0.015;
+            
+            if (this.x < -50) this.x = canvas.width + 50;
+            if (this.x > canvas.width + 50) this.x = -50;
+            if (this.y < -50) this.y = canvas.height + 50;
+            if (this.y > canvas.height + 50) this.y = -50;
+            
+            const px = this.x + dx;
+            const py = this.y + dy;
+            
+            ctx.fillStyle = `rgba(100, 255, 180, ${this.alpha})`;
+            ctx.shadowBlur = 4;
+            ctx.shadowColor = 'rgba(100, 255, 180, 0.4)';
+            ctx.beginPath();
+            ctx.arc(px, py, this.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+    }
+    
+    for(let i=0; i<count; i++) particles.push(new Particle());
+    
+    let mx = 0, my = 0;
+    window.addEventListener('mousemove', (e) => {
+        mx = e.clientX;
+        my = e.clientY;
+    });
+    
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => p.update(mx, my));
+        requestAnimationFrame(animate);
+    }
+    
+    animate();
+}
+
+class TextScramble {
+    constructor(el) {
+        this.el = el;
+        this.chars = '!<>-_\\/[]{}—=+*^?#________';
+        this.update = this.update.bind(this);
+    }
+    setText(newText) {
+        const oldText = this.el.innerText;
+        const length = Math.max(oldText.length, newText.length);
+        const promise = new Promise((resolve) => this.resolve = resolve);
+        this.queue = [];
+        for (let i = 0; i < length; i++) {
+            const from = oldText[i] || '';
+            const to = newText[i] || '';
+            const start = Math.floor(Math.random() * 40);
+            const end = start + Math.floor(Math.random() * 40);
+            this.queue.push({ from, to, start, end });
+        }
+        cancelAnimationFrame(this.frameRequest);
+        this.frame = 0;
+        this.update();
+        return promise;
+    }
+    update() {
+        let output = '';
+        let complete = 0;
+        for (let i = 0, n = this.queue.length; i < n; i++) {
+            let { from, to, start, end, char } = this.queue[i];
+            if (this.frame >= end) {
+                complete++;
+                output += to;
+            } else if (this.frame >= start) {
+                if (!char || Math.random() < 0.28) {
+                    char = this.randomChar();
+                    this.queue[i].char = char;
+                }
+                output += `<span class="scramble-char">${char}</span>`;
+            } else {
+                output += from;
+            }
+        }
+        this.el.innerHTML = output;
+        if (complete === this.queue.length) {
+            this.resolve();
+        } else {
+            this.frameRequest = requestAnimationFrame(this.update);
+            this.frame++;
+        }
+    }
+    randomChar() {
+        return this.chars[Math.floor(Math.random() * this.chars.length)];
+    }
+}
+
+function initScramble() {
+    const scrambleEls = document.querySelectorAll('.nav-links a, .section-title');
+    scrambleEls.forEach(el => {
+        const originalText = el.innerText;
+        const fx = new TextScramble(el);
+        el.addEventListener('mouseenter', () => fx.setText(originalText));
     });
 }
