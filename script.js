@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initScrollReveal();
     initCustomCursor();
     initViewportTilt();
+    initMagneticTitle();
 });
 
 async function fetchGitHubData() {
@@ -351,5 +352,23 @@ function initViewportTilt() {
 
     container.addEventListener('mouseleave', () => {
         window3d.style.transform = `rotateX(10deg) rotateY(-5deg) rotateZ(2deg) scale(1)`;
+    });
+}
+
+function initMagneticTitle() {
+    const titles = document.querySelectorAll('.hover-text');
+    
+    titles.forEach(title => {
+        title.addEventListener('mousemove', (e) => {
+            const rect = title.getBoundingClientRect();
+            const x = e.clientX - rect.left - rect.width / 2;
+            const y = e.clientY - rect.top - rect.height / 2;
+            
+            title.style.transform = `translate(${x * 0.3}px, ${y * 0.3}px) skewX(${x * 0.1}deg)`;
+        });
+        
+        title.addEventListener('mouseleave', () => {
+            title.style.transform = `translate(0, 0) skewX(0)`;
+        });
     });
 }
